@@ -6,6 +6,7 @@
 
 typedef struct SoundChannelData {
   HWAVEOUT handle;
+  WAVEHDR header; // data associated with currently-playing sound
 } SoundChannelData;
 
 typedef struct SoundBufferData {
@@ -73,6 +74,67 @@ int SoundChannel_OpenDefault(SoundChannel soundChannel)
   }
   
   return 0;
+}
+
+int SoundChannel_StartPlaying(SoundChannel soundChannel, SoundBuffer soundBuffer, int loop)
+{
+  SoundChannelData* soundChannelData;
+  soundChannelData = (SoundChannelData*)soundChannel;
+  if (!soundChannelData)
+  {
+    DIAGNOSTIC_SOUND_ERROR("null soundChannel arg provided to SoundChannel_StartPlaying");
+    return 0;
+  }
+  
+  if (soundChannelData->handle == 0)
+  {
+    DIAGNOSTIC_SOUND_ERROR("soundChannel not yet opened in SoundChannel_StartPlaying");
+    return 0;
+  }
+  
+  SoundBufferData* soundBufferData;
+  soundBufferData = (SoundBufferData*)soundBuffer;
+  if (!soundBufferData)
+  {
+    DIAGNOSTIC_SOUND_ERROR("null soundBuffer arg provided to SoundChannel_StartPlaying");
+    return 0;
+  }
+  
+  if (soundBufferData->data == 0)
+  {
+    DIAGNOSTIC_SOUND_ERROR("soundBuffer not yet loaded in SoundChannel_StartPlaying");
+    return 0;
+  }
+  
+  LPWAVEHDR header;
+  header = &soundChannelData->header;
+  memset(header, 0, sizeof(*header));
+  header->lpData = soundBufferData->data;
+  header->dwBufferLength = soundBufferData->length;
+  header->dwFlags = 0 | (loop ? (WHDR_BEGINLOOP | WHDR_ENDLOOP) : 0);
+  header->dwLoops = loop ? 0xffffffff : 0;
+  
+  MMRESULT result;
+  result = waveOutPrepareHeader(soundChannelData->handle, header, sizeof(*header));
+  if (MMSYSERR_NOERROR != result)
+  {
+    DIAGNOSTIC_SOUND_ERROR("waveOutPrepareHeader failed in SoundChannel_StartPlaying");
+    return 0;
+  }
+  
+  result = waveOutWrite(soundChannelData->handle, header, sizeof(*header));
+  if (result != MMSYSERR_NOERROR)
+  {
+    switch (result)
+    {
+      case MMSYSERR_INVALHANDLE: DIAGNOSTIC_SOUND_ERROR("waveOutWrite error: Specified device handle is invalid."); break;
+      case MMSYSERR_NODRIVER: DIAGNOSTIC_SOUND_ERROR("waveOutWrite error: No device driver is present."); break;
+      case MMSYSERR_NOMEM: DIAGNOSTIC_SOUND_ERROR("waveOutWrite error: Unable to allocate or lock memory."); break;
+      case WAVERR_UNPREPARED: DIAGNOSTIC_SOUND_ERROR("waveOutWrite error: The data block pointed to by the pwh parameter hasn't been prepared."); break;
+      default: DIAGNOSTIC_SOUND_ERROR("unknown waveOutWrite error");
+    }
+    return 0;
+  }
 }
 
 SoundBuffer SoundBuffer_Create()

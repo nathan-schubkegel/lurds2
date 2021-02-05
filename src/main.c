@@ -143,6 +143,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             return 0;
             
           case 1339:
+            SoundChannel_StartPlaying(soundChannel, soundBuffer, 0);
             break;
             
           default:
