@@ -1,6 +1,7 @@
 #include <windows.h>
 
-#define WINDOW_CLASS_NAME "LURDS2"
+#include "sound.h"
+#include "sound.c"
 
 char mainWindowClassName[] = "LURDS2";
 char mainWindowTitle[]   = "Lurds of the Rolm 2";
@@ -12,6 +13,7 @@ HWND mainWindowHandle = 0;
 void CenterWindow(HWND hWnd);
 void SetFullScreen(int yes, HWND hwnd);
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+void CreateSoundChannelButton(HWND hwnd_parent);
 
 int APIENTRY WinMain(
   HINSTANCE hInstance,
@@ -57,6 +59,8 @@ int APIENTRY WinMain(
     return 1;
   }
   
+  CreateSoundChannelButton(mainWindowHandle);
+  
   mainWindowFullScreen = 0;
 
   // Main message loop:
@@ -96,6 +100,25 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
       }
       if (VK_F11 == wParam) SetFullScreen(!mainWindowFullScreen, hwnd);
       break;
+      
+    case WM_COMMAND:
+      if (LOWORD(wParam) == 1337 && HIWORD(wParam) == BN_CLICKED)
+      {
+        // if needed, lparam is button handle
+        //MessageBox(0, "you clicked me!", "ok", 0);
+        SoundChannel c;
+        c = SoundChannel_Create();
+        if (SoundChannel_OpenDefault(c))
+        {
+          MessageBox(0, "it worked!", "ok", 0);
+        }
+        else
+        {
+          MessageBox(0, "it ddidn't =(", "sad", 0);
+        }
+      }
+      else return DefWindowProc(hwnd, message, wParam, lParam);
+      break;
 
     case WM_SYSCOMMAND:
       if (SC_MAXIMIZE == wParam) SetFullScreen(1, hwnd);
@@ -111,7 +134,6 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
       // TODO: should technically inspect wParam
       SetFullScreen(1, hwnd);
       break;
-      
       
     case WM_PAINT:
     {
@@ -157,7 +179,7 @@ void SetFullScreen(int yes, HWND hwnd)
       GetWindowRect(hwnd, &lastMainWindowRectBeforeFullScreen);
       mainWindowFullScreen = 1;
       SetWindowLongPtr(hwnd, GWL_STYLE, WS_FULLSCREEN);
-      SetWindowPos(mainWindowHandle, HWND_TOP, 
+      SetWindowPos(hwnd, HWND_TOP, 
         monitorInfo.rcMonitor.left, 
         monitorInfo.rcMonitor.top, 
         monitorWidth,
@@ -182,7 +204,7 @@ void SetFullScreen(int yes, HWND hwnd)
       
       mainWindowFullScreen = 0;
       SetWindowLongPtr(hwnd, GWL_STYLE, WS_NOTFULLSCREEN);
-      SetWindowPos(mainWindowHandle, HWND_TOP,
+      SetWindowPos(hwnd, HWND_TOP,
         newLeft,
         newTop,
         newWidth,
@@ -216,4 +238,18 @@ void CenterWindow(HWND hwnd_self)
         );
 }
 
-//+---------------------------------------------------------------------------
+void CreateSoundChannelButton(HWND hwnd_parent)
+{
+  HWND hwndButton = CreateWindow( 
+    "BUTTON",  // Predefined class; Unicode assumed 
+    "OK",      // Button text 
+    WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+    10,         // x position 
+    10,         // y position 
+    100,        // Button width
+    100,        // Button height
+    hwnd_parent, // Parent window
+    (HMENU)1337,       // No menu, but for child controls this is the "control identifier" passed to the parent control on button click event
+    (HINSTANCE)GetWindowLongPtr(hwnd_parent, GWLP_HINSTANCE), 
+    NULL);      // Pointer not needed.
+}
