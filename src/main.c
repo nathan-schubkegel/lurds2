@@ -1,7 +1,7 @@
 #include <windows.h>
 
-#include "sound.h"
 #include "sound.c"
+#include "errors.c"
 
 char mainWindowClassName[] = "LURDS2";
 char mainWindowTitle[]   = "Lurds of the Rolm 2";
@@ -9,11 +9,13 @@ char mainWindowContent[] = "Welcome to Lurds of the Rolm 2";
 RECT lastMainWindowRectBeforeFullScreen;
 int mainWindowFullScreen = 0;
 HWND mainWindowHandle = 0;
+SoundChannel soundChannel = SoundChannel_None;
+SoundBuffer soundBuffer = SoundBuffer_None;
 
 void CenterWindow(HWND hWnd);
 void SetFullScreen(int yes, HWND hwnd);
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-void CreateSoundChannelButton(HWND hwnd_parent);
+void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top);
 
 int APIENTRY WinMain(
   HINSTANCE hInstance,
@@ -23,7 +25,6 @@ int APIENTRY WinMain(
 {
   MSG msg;
   WNDCLASS wc;
-  ;
 
   ZeroMemory(&wc, sizeof wc);
   wc.hInstance     = hInstance;
@@ -59,7 +60,9 @@ int APIENTRY WinMain(
     return 1;
   }
   
-  CreateSoundChannelButton(mainWindowHandle);
+  CreateButton(mainWindowHandle, 1337, "Open", 50, 10, 10);
+  CreateButton(mainWindowHandle, 1338, "LoadSound", 80, 70, 10);
+  CreateButton(mainWindowHandle, 1339, "Play", 50, 160, 10);
   
   mainWindowFullScreen = 0;
 
@@ -102,19 +105,49 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
       break;
       
     case WM_COMMAND:
-      if (LOWORD(wParam) == 1337 && HIWORD(wParam) == BN_CLICKED)
+      if (HIWORD(wParam) == BN_CLICKED)
       {
         // if needed, lparam is button handle
-        //MessageBox(0, "you clicked me!", "ok", 0);
-        SoundChannel c;
-        c = SoundChannel_Create();
-        if (SoundChannel_OpenDefault(c))
+        switch (LOWORD(wParam))
         {
-          MessageBox(0, "it worked!", "ok", 0);
-        }
-        else
-        {
-          MessageBox(0, "it ddidn't =(", "sad", 0);
+          case 1337:
+            soundChannel = SoundChannel_Create();
+            if (soundChannel == SoundChannel_None)
+            {
+              MessageBox(0, "failed to create it", 0, 0);
+            }
+            else if (!SoundChannel_OpenDefault(soundChannel))
+            {
+              MessageBox(0, "failed to open it", 0, 0);
+            }
+            else
+            {
+              MessageBox(0, "wurked", 0, 0);
+            }
+            return 0;
+          
+          case 1338:
+            soundBuffer = SoundBuffer_Create();
+            if (soundBuffer == SoundBuffer_None)
+            {
+              MessageBox(0, "failed to create eet", 0, 0);
+            }
+            else if (!SoundBuffer_LoadFromFileW(soundBuffer, L"C:\\games\\Lords of the Realm II\\Kt174_4.wav"))
+            {
+              MessageBox(0, "failed to load eet from file", 0, 0);
+            }
+            else
+            {
+              MessageBox(0, "wurked", 0, 0);
+            }
+            return 0;
+            
+          case 1339:
+            break;
+            
+          default:
+            return DefWindowProc(hwnd, message, wParam, lParam);
+            break;
         }
       }
       else return DefWindowProc(hwnd, message, wParam, lParam);
@@ -238,18 +271,18 @@ void CenterWindow(HWND hwnd_self)
         );
 }
 
-void CreateSoundChannelButton(HWND hwnd_parent)
+void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top)
 {
   HWND hwndButton = CreateWindow( 
     "BUTTON",  // Predefined class; Unicode assumed 
-    "OK",      // Button text 
+    text,      // Button text 
     WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
-    10,         // x position 
-    10,         // y position 
-    100,        // Button width
-    100,        // Button height
+    left,         // x position 
+    top,         // y position 
+    width,        // Button width
+    30,        // Button height
     hwnd_parent, // Parent window
-    (HMENU)1337,       // No menu, but for child controls this is the "control identifier" passed to the parent control on button click event
+    (HMENU)id,       // No menu, but for child controls this is the "control identifier" passed to the parent control on button click event
     (HINSTANCE)GetWindowLongPtr(hwnd_parent, GWLP_HINSTANCE), 
     NULL);      // Pointer not needed.
 }

@@ -1,6 +1,8 @@
-#ifndef LURDS2_DEFINES
-#define LURDS2_DEFINES
+#ifndef LURDS2_ERRORS
+#define LURDS2_ERRORS
 
 #define COMPILE_TIME_ASSERT(expr) typedef char COMP_TIME_ASSERT[(expr) ? 1 : 0];
+
+char* GetLastErrorMessage();
 
 #endif

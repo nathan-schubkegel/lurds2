@@ -1,12 +1,17 @@
 #include "sound.h"
 
-#include "defines.h"
+#include "errors.h"
 
 #define DIAGNOSTIC_SOUND_ERROR(message) MessageBox(0, (message), "error in sound.c", 0);
 
 typedef struct SoundChannelData {
   HWAVEOUT handle;
 } SoundChannelData;
+
+typedef struct SoundBufferData {
+  char * data;
+  int length;
+} SoundBufferData;
 
 SoundChannel SoundChannel_Create()
 {
@@ -70,12 +75,84 @@ int SoundChannel_OpenDefault(SoundChannel soundChannel)
   return 0;
 }
 
-/*
 SoundBuffer SoundBuffer_Create()
-int         SoundBuffer_LoadFromFile(wchar_t * filePath);
+{
+  SoundBufferData * result;
+  result = (SoundBuffer)malloc(sizeof(SoundBufferData));
+  if (result != 0)
+  {
+    memset(result, 0, sizeof(SoundBufferData));
+  }
+  return result;
+}
 
-SoundChannel SoundChannel_Create();
-int          SoundChannel_OpenDefault();
-int          SoundChannel_StartPlaying(SoundBuffer buffer, int loop);
-int          SoundChannel_StopPlaying();
-*/
+int SoundBuffer_LoadFromFileW(SoundBuffer soundBuffer, wchar_t * filePath)
+{
+  SoundBufferData* data;
+  data = (SoundBufferData*)soundBuffer;
+  if (!data)
+  {
+    DIAGNOSTIC_SOUND_ERROR("null soundBuffer arg provided to SoundBuffer_LoadFromFileW");
+    return 0;
+  }
+  
+  HANDLE h;
+  h = CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  if (h == INVALID_HANDLE_VALUE)
+  {
+    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessage());
+    return 0;
+  }
+  
+  DWORD size;
+  DWORD sizeHigh;
+  size = GetFileSize(h, &sizeHigh);
+  if (INVALID_FILE_SIZE == size)
+  {
+    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessage());
+    CloseHandle(h);
+    return 0;
+  }
+
+  if (size > 100000000 || sizeHigh > 0)
+  {
+    DIAGNOSTIC_SOUND_ERROR("sound file too big");
+    CloseHandle(h);
+    return 0;
+  }
+
+  char * buffer;
+  buffer = malloc(size);
+  if (buffer == 0)
+  {
+    DIAGNOSTIC_SOUND_ERROR("failed to allocate memory for sound from file");
+    CloseHandle(h);
+    return 0;
+  }
+  
+  DWORD numBytesRead;
+  if (!ReadFile(h, buffer, size, &numBytesRead, 0))
+  {
+    DIAGNOSTIC_SOUND_ERROR("failed to read sound from file");
+    CloseHandle(h);
+    free(buffer);
+    return 0;
+  }
+  
+  if (numBytesRead != size)
+  {
+    DIAGNOSTIC_SOUND_ERROR("unexpected numByteRead from sound file");
+    CloseHandle(h);
+    free(buffer);
+    return 0;
+  }
+  
+  if (data->data != 0)
+  {
+    free(data->data);
+  }
+  
+  data->data = buffer;
+  data->length = size;
+  return 1;
+}
