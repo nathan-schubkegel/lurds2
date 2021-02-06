@@ -9,8 +9,8 @@ char mainWindowContent[] = "Welcome to Lurds of the Rolm 2";
 RECT lastMainWindowRectBeforeFullScreen;
 int mainWindowFullScreen = 0;
 HWND mainWindowHandle = 0;
-SoundChannel soundChannel = SoundChannel_None;
-SoundBuffer soundBuffer = SoundBuffer_None;
+SoundChannel soundChannel = 0;
+SoundBuffer soundBuffer = 0;
 
 void CenterWindow(HWND hWnd);
 void SetFullScreen(int yes, HWND hwnd);
@@ -47,7 +47,7 @@ int APIENTRY WinMain(
     WS_OVERLAPPEDWINDOW|WS_VISIBLE,
     CW_USEDEFAULT,
     CW_USEDEFAULT,
-    360,//CW_USEDEFAULT,
+    500,//CW_USEDEFAULT,
     240,//CW_USEDEFAULT,
     0,
     0,
@@ -61,8 +61,11 @@ int APIENTRY WinMain(
   }
   
   CreateButton(mainWindowHandle, 1337, "Open", 50, 10, 10);
-  CreateButton(mainWindowHandle, 1338, "LoadSound", 80, 70, 10);
-  CreateButton(mainWindowHandle, 1339, "Play", 50, 160, 10);
+  CreateButton(mainWindowHandle, 1338, "LoadBuffer", 100, 70, 10);
+  CreateButton(mainWindowHandle, 1339, "Play", 50, 180, 10);
+  CreateButton(mainWindowHandle, 1340, "Stop", 50, 240, 10);
+  CreateButton(mainWindowHandle, 1341, "KillBuffer", 100, 300, 10);
+  CreateButton(mainWindowHandle, 1342, "Kill", 50, 410, 10);
   
   mainWindowFullScreen = 0;
 
@@ -111,12 +114,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
         switch (LOWORD(wParam))
         {
           case 1337:
-            soundChannel = SoundChannel_Create();
-            if (soundChannel == SoundChannel_None)
+            if (soundChannel)
             {
-              MessageBox(0, "failed to create it", 0, 0);
+              MessageBox(0, "no, it's already allocated", 0, 0);
+              return 0;
             }
-            else if (!SoundChannel_OpenDefault(soundChannel))
+            soundChannel = SoundChannel_Open();
+            if (soundChannel == 0)
             {
               MessageBox(0, "failed to open it", 0, 0);
             }
@@ -127,25 +131,41 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             return 0;
           
           case 1338:
-            soundBuffer = SoundBuffer_Create();
-            if (soundBuffer == SoundBuffer_None)
+            if (soundBuffer)
             {
-              MessageBox(0, "failed to create eet", 0, 0);
+              MessageBox(0, "no, it's already loaded", 0, 0);
+              return 0;
             }
-            else if (!SoundBuffer_LoadFromFileW(soundBuffer, L"C:\\games\\Lords of the Realm II\\Kt174_4.wav"))
+            soundBuffer = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Kt174_4.wav");
+            if (soundBuffer == 0)
             {
               MessageBox(0, "failed to load eet from file", 0, 0);
             }
             else
             {
               MessageBox(0, "wurked", 0, 0);
+              SoundChannel_Bind(soundChannel, soundBuffer, 0);
             }
             return 0;
-            
+
           case 1339:
-            SoundChannel_StartPlaying(soundChannel, soundBuffer, 0);
+            SoundChannel_Play(soundChannel);
+            break;
+
+          case 1340:
+            SoundChannel_Stop(soundChannel);
             break;
             
+          case 1341:
+            SoundBuffer_Release(soundBuffer);
+            soundBuffer = 0;
+            break;
+            
+          case 1342:
+            SoundChannel_Release(soundChannel);
+            soundChannel = 0;
+            break;
+
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);
             break;
