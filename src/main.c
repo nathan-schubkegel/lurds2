@@ -1,6 +1,8 @@
 #include <windows.h>
+#include <Objbase.h>
 
 #include "sound.c"
+#include "wsapi.c"
 #include "errors.c"
 
 char mainWindowClassName[] = "LURDS2";
@@ -23,6 +25,32 @@ int APIENTRY WinMain(
   LPSTR lpCmdLine,
   int nCmdShow)
 {
+  HRESULT r;
+  
+  // start COM (initially for wsapi)
+  r = CoInitializeEx(0, COINIT_APARTMENTTHREADED);
+  if (!SUCCEEDED(r))
+  {
+    MessageBox(0, "CoInitializeEx() failed", mainWindowTitle, 0);
+    return 0;
+  }
+  
+  // start wsapi
+  r = MFStartup(MF_VERSION, MFSTARTUP_LITE);
+  if (!SUCCEEDED(r))
+  {
+    char* message;
+    switch(r)
+    {
+      case MF_E_BAD_STARTUP_VERSION: message = "MFStartup() failed: The Version parameter requires a newer version of Media Foundation than the version that is running."; break;
+      case MF_E_DISABLED_IN_SAFEMODE: message = "MFStartup() failed: The Media Foundation platform is disabled because the system was started in \"Safe Mode\" (fail-safe boot)."; break;
+      case E_NOTIMPL: message = "MFStartup() failed: Media Foundation is not implemented on the system. This error can occur if the media components are not present (See KB2703761 for more info)."; break;
+      default: message = "MFStartup() failed"; break;
+    }
+    MessageBox(0, message, mainWindowTitle, 0);
+    return 0;
+  }
+  
   MSG msg;
   WNDCLASS wc;
 
@@ -75,6 +103,9 @@ int APIENTRY WinMain(
     TranslateMessage(&msg);
     DispatchMessage(&msg);
   }
+  
+  MessageBox(0, "shutting down", 0, 0);
+  MFShutdown();
 
   return msg.wParam;
 }
@@ -144,7 +175,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             else
             {
               MessageBox(0, "wurked", 0, 0);
-              SoundChannel_Bind(soundChannel, soundBuffer, 0);
+              SoundChannel_Bind(soundChannel, soundBuffer, 1);
             }
             return 0;
 

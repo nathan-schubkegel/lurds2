@@ -1,6 +1,8 @@
 #include "sound.h"
 
 #include "errors.h"
+#include "wsapi.h"
+#include <Objbase.h>
 
 #define DIAGNOSTIC_SOUND_ERROR(message) MessageBox(0, (message), "error in sound.c", 0);
 
@@ -11,8 +13,8 @@ typedef struct SoundBufferData {
 } SoundBufferData;
 
 typedef struct SoundChannelData {
-  HWAVEOUT handle;
-  WAVEHDR header; // data associated with currently-playing sound
+  //HWAVEOUT handle;
+  //WAVEHDR header; // data associated with currently-playing sound
   SoundBufferData* buffer;
 } SoundChannelData;
 
@@ -26,40 +28,109 @@ SoundChannel SoundChannel_Open()
     return 0;
   }
   memset(channel, 0, sizeof(SoundChannelData));
-
-  WAVEFORMATEX waveFormat;
-  memset(&waveFormat, 0, sizeof(waveFormat));
-  waveFormat.cbSize = sizeof(waveFormat);
-
-  // fill it according to lurds2 resource sounds
-  waveFormat.wFormatTag = WAVE_FORMAT_PCM;
-  waveFormat.nChannels = 1;
-  waveFormat.nSamplesPerSec = 11025;
-  waveFormat.wBitsPerSample = 8;
-  waveFormat.nBlockAlign = waveFormat.wBitsPerSample * waveFormat.nChannels / 8;
-
-  HWAVEOUT h;
-  MMRESULT result;
-  result = waveOutOpen(&h, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
-  if (MMSYSERR_NOERROR != result)
+  
+  IMMDeviceEnumerator* e;
+  e = CreateMMDeviceEnumerator();
+  if (e == 0)
+  {
+    free(channel);
+    return 0;
+  }
+  
+  IMMDevice* device;
+  device = 0;
+  HRESULT r;
+  r = e->lpVtbl->GetDefaultAudioEndpoint(e, eRender, eConsole, &device);
+  if (!SUCCEEDED(r))
   {
     char* message;
-    switch (result)
+    switch (r)
     {
-      case MMSYSERR_ALLOCATED: message = "SoundChannel_Open(): waveOutOpen(): Specified resource is already allocated."; break;
-      case MMSYSERR_BADDEVICEID: message = "SoundChannel_Open(): waveOutOpen(): Specified device identifier is out of range."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Open(): waveOutOpen(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Open(): waveOutOpen(): Unable to allocate or lock memory."; break;
-      case WAVERR_BADFORMAT: message = "SoundChannel_Open(): waveOutOpen(): Attempted to open with an unsupported waveform-audio format."; break;
-      case WAVERR_SYNC: message = "SoundChannel_Open(): waveOutOpen(): The device is synchronous but waveOutOpen was called without using the WAVE_ALLOWSYNC flag."; break;
-      default: message = "SoundChannel_Open(): waveOutOpen(): Unknown error."; break;
+      case E_NOTFOUND: message = "SoundChannel_Open(): IMMDeviceEnumerator.GetDefaultAudioEndpoint(): No device is available."; break;
+      case E_OUTOFMEMORY: message = "SoundChannel_Open(): IMMDeviceEnumerator.GetDefaultAudioEndpoint(): Out of memory."; break;
+      default: message = "SoundChannel_Open(): IMMDeviceEnumerator.GetDefaultAudioEndpoint(): unknown error."; break;
     }
     DIAGNOSTIC_SOUND_ERROR(message);
+
+    e->lpVtbl->Release(e);
     free(channel);
     return 0;
   }
 
-  channel->handle = h;
+  IAudioClient* audioClient;
+  audioClient = 0;
+  if (!SUCCEEDED(r = device->lpVtbl->Activate(device, &IID_IAudioClient, CLSCTX_INPROC_SERVER, 0, &audioClient)))
+  {
+    char* message;
+    switch (r)
+    {
+      case E_NOINTERFACE: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): The object does not support the requested interface type."; break;
+      case E_POINTER: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): Parameter ppInterface is NULL."; break;
+      case E_INVALIDARG: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): The pActivationParams parameter must be NULL for the specified interface; or pActivationParams points to invalid data."; break;
+      case E_OUTOFMEMORY: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): Out of memory."; break;
+      case AUDCLNT_E_DEVICE_INVALIDATED: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to."; break;
+      default: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): unknown error."; break;
+    }
+    DIAGNOSTIC_SOUND_ERROR(message);
+
+    device->lpVtbl->Release(device);
+    e->lpVtbl->Release(e);
+    free(channel);
+    return 0;
+  }
+  
+  //r = audioClient->lpVtbl->Initialize(audioClient, AUDCLNT_SHAREMODE_SHARED, 0, ?, 0, &waveFormat, )
+  
+//  LPWSTR id;
+//  id = 0;
+//  if (!SUCCEEDED(r = device->lpVtbl->GetId(device, &id))) {
+//    device->lpVtbl->Release(device);
+//    e->lpVtbl->Release(e);
+//    free(channel);
+//    return 0;
+//  }
+//  
+//  MessageBoxW(0, id, 0, 0);
+  
+  // quackery
+  //CoTaskMemFree(id);
+  audioClient->lpVtbl->Release(audioClient);
+  device->lpVtbl->Release(device);
+  e->lpVtbl->Release(e);
+
+//  WAVEFORMATEX waveFormat;
+//  memset(&waveFormat, 0, sizeof(waveFormat));
+//  waveFormat.cbSize = sizeof(waveFormat);
+
+//  // fill it according to lurds2 resource sounds
+//  waveFormat.wFormatTag = WAVE_FORMAT_PCM;
+//  waveFormat.nChannels = 1;
+//  waveFormat.nSamplesPerSec = 11025;
+//  waveFormat.wBitsPerSample = 8;
+//  waveFormat.nBlockAlign = waveFormat.wBitsPerSample * waveFormat.nChannels / 8;
+
+//  HWAVEOUT h;
+//  MMRESULT result;
+//  result = waveOutOpen(&h, WAVE_MAPPER, &waveFormat, 0, 0, CALLBACK_NULL);
+//  if (MMSYSERR_NOERROR != result)
+//  {
+//    char* message;
+//    switch (result)
+//    {
+//      case MMSYSERR_ALLOCATED: message = "SoundChannel_Open(): waveOutOpen(): Specified resource is already allocated."; break;
+//      case MMSYSERR_BADDEVICEID: message = "SoundChannel_Open(): waveOutOpen(): Specified device identifier is out of range."; break;
+//      case MMSYSERR_NODRIVER: message = "SoundChannel_Open(): waveOutOpen(): No device driver is present."; break;
+//      case MMSYSERR_NOMEM: message = "SoundChannel_Open(): waveOutOpen(): Unable to allocate or lock memory."; break;
+//      case WAVERR_BADFORMAT: message = "SoundChannel_Open(): waveOutOpen(): Attempted to open with an unsupported waveform-audio format."; break;
+//      case WAVERR_SYNC: message = "SoundChannel_Open(): waveOutOpen(): The device is synchronous but waveOutOpen was called without using the WAVE_ALLOWSYNC flag."; break;
+//      default: message = "SoundChannel_Open(): waveOutOpen(): Unknown error."; break;
+//    }
+//    DIAGNOSTIC_SOUND_ERROR(message);
+//    free(channel);
+//    return 0;
+//  }
+
+//  channel->handle = h;
   return channel;
 }
 
@@ -71,47 +142,47 @@ void SoundChannel_Unbind(SoundChannelData* channel)
     return;
   }
 
-  if (!channel->handle)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Unbind(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
-  }
+//  if (!channel->handle)
+//  {
+//    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Unbind(): invalid soundChannel->handle (likely a dangling pointer defect)");
+//    return;
+//  }
 
   if (channel->buffer)
   {
-    // in case a sound is currently playing, gotta stop it first
-    MMRESULT result;
-    result = waveOutReset(channel->handle);
-    if (result != MMSYSERR_NOERROR)
-    {
-      char* message;
-      switch (result)
-      {
-        case MMSYSERR_INVALHANDLE: message = "SoundChannel_Unbind(): waveOutReset(): Specified device handle is invalid."; break;
-        case MMSYSERR_NODRIVER: message = "SoundChannel_Unbind(): waveOutReset(): No device driver is present."; break;
-        case MMSYSERR_NOMEM: message = "SoundChannel_Unbind(): waveOutReset(): Unable to allocate or lock memory."; break;
-        case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Unbind(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
-        default: message = "SoundChannel_Unbind(): waveOutReset(): Unknown error."; break;
-      }
-      DIAGNOSTIC_SOUND_ERROR(message);
-      // TODO: how to robustly recover from this kind of error?
-    }
-
-    result = waveOutUnprepareHeader(channel->handle, &channel->header, sizeof(channel->header));
-    if (result != MMSYSERR_NOERROR)
-    {
-      char* message;
-      switch (result)
-      {
-        case MMSYSERR_INVALHANDLE: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Specified device handle is invalid."; break;
-        case MMSYSERR_NODRIVER: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): No device driver is present."; break;
-        case MMSYSERR_NOMEM: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Unable to allocate or lock memory."; break;
-        case WAVERR_STILLPLAYING: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): The data block pointed to by the pwh parameter is still in the queue."; break;
-        default: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Unknown error."; break;
-      }
-      DIAGNOSTIC_SOUND_ERROR(message);
-      // TODO: how to robustly recover from this kind of error?
-    }
+//    // in case a sound is currently playing, gotta stop it first
+//    MMRESULT result;
+//    result = waveOutReset(channel->handle);
+//    if (result != MMSYSERR_NOERROR)
+//    {
+//      char* message;
+//      switch (result)
+//      {
+//        case MMSYSERR_INVALHANDLE: message = "SoundChannel_Unbind(): waveOutReset(): Specified device handle is invalid."; break;
+//        case MMSYSERR_NODRIVER: message = "SoundChannel_Unbind(): waveOutReset(): No device driver is present."; break;
+//        case MMSYSERR_NOMEM: message = "SoundChannel_Unbind(): waveOutReset(): Unable to allocate or lock memory."; break;
+//        case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Unbind(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
+//        default: message = "SoundChannel_Unbind(): waveOutReset(): Unknown error."; break;
+//      }
+//      DIAGNOSTIC_SOUND_ERROR(message);
+//      // TODO: how to robustly recover from this kind of error?
+//    }
+//
+//    result = waveOutUnprepareHeader(channel->handle, &channel->header, sizeof(channel->header));
+//    if (result != MMSYSERR_NOERROR)
+//    {
+//      char* message;
+//      switch (result)
+//      {
+//        case MMSYSERR_INVALHANDLE: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Specified device handle is invalid."; break;
+//        case MMSYSERR_NODRIVER: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): No device driver is present."; break;
+//        case MMSYSERR_NOMEM: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Unable to allocate or lock memory."; break;
+//        case WAVERR_STILLPLAYING: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): The data block pointed to by the pwh parameter is still in the queue."; break;
+//        default: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Unknown error."; break;
+//      }
+//      DIAGNOSTIC_SOUND_ERROR(message);
+//      // TODO: how to robustly recover from this kind of error?
+//    }
 
     SoundBuffer_Release(channel->buffer);
     channel->buffer = 0;
@@ -129,11 +200,11 @@ void SoundChannel_Bind(SoundChannel soundChannel, SoundBuffer soundBuffer, int l
     return;
   }
 
-  if (!channel->handle)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Bind(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
-  }
+//  if (!channel->handle)
+//  {
+//    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Bind(): invalid soundChannel->handle (likely a dangling pointer defect)");
+//    return;
+//  }
   
   if (!buffer)
   {
@@ -163,29 +234,29 @@ void SoundChannel_Bind(SoundChannel soundChannel, SoundBuffer soundBuffer, int l
     return;
   }
 
-  LPWAVEHDR header;
-  header = &channel->header;
-  memset(header, 0, sizeof(*header));
-  header->lpData = buffer->data;
-  header->dwBufferLength = buffer->length;
-  header->dwFlags = 0 | (loop ? (WHDR_BEGINLOOP | WHDR_ENDLOOP) : 0);
-  header->dwLoops = loop ? 0xffffffff : 0;
-
-  MMRESULT result;
-  result = waveOutPrepareHeader(channel->handle, header, sizeof(*header));
-  if (MMSYSERR_NOERROR != result)
-  {
-    char * message;
-    switch (result)
-    {
-      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Bind(): waveOutPrepareHeader(): Specified device handle is invalid."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Bind(): waveOutPrepareHeader(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Bind(): waveOutPrepareHeader(): Unable to allocate or lock memory."; break;
-      default: message = "SoundChannel_Bind(): waveOutPrepareHeader(): unknown error"; break;
-    }
-    DIAGNOSTIC_SOUND_ERROR(message);
-    return;
-  }
+//  LPWAVEHDR header;
+//  header = &channel->header;
+//  memset(header, 0, sizeof(*header));
+//  header->lpData = buffer->data;
+//  header->dwBufferLength = buffer->length;
+//  header->dwFlags = 0 | (loop ? (WHDR_BEGINLOOP | WHDR_ENDLOOP) : 0);
+//  header->dwLoops = loop ? 0xffffffff : 0;
+//
+//  MMRESULT result;
+//  result = waveOutPrepareHeader(channel->handle, header, sizeof(*header));
+//  if (MMSYSERR_NOERROR != result)
+//  {
+//    char * message;
+//    switch (result)
+//    {
+//      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Bind(): waveOutPrepareHeader(): Specified device handle is invalid."; break;
+//      case MMSYSERR_NODRIVER: message = "SoundChannel_Bind(): waveOutPrepareHeader(): No device driver is present."; break;
+//      case MMSYSERR_NOMEM: message = "SoundChannel_Bind(): waveOutPrepareHeader(): Unable to allocate or lock memory."; break;
+//      default: message = "SoundChannel_Bind(): waveOutPrepareHeader(): unknown error"; break;
+//    }
+//    DIAGNOSTIC_SOUND_ERROR(message);
+//    return;
+//  }
   
   channel->buffer = buffer;
   buffer->refcount++;
@@ -201,11 +272,11 @@ void SoundChannel_Play(SoundChannel soundChannel)
     return;
   }
 
-  if (!channel->handle)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
-  }
+//  if (!channel->handle)
+//  {
+//    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): invalid soundChannel->handle (likely a dangling pointer defect)");
+//    return;
+//  }
   
   if (!channel->buffer)
   {
@@ -213,36 +284,36 @@ void SoundChannel_Play(SoundChannel soundChannel)
     return;
   }
   
-  // in case a sound is currently playing, stop it first
-  MMRESULT result;
-  result = waveOutReset(channel->handle);
-  if (result != MMSYSERR_NOERROR)
-  {
-    char* message;
-    switch (result)
-    {
-      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Play(): waveOutReset(): Specified device handle is invalid."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Play(): waveOutReset(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Play(): waveOutReset(): Unable to allocate or lock memory."; break;
-      case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Play(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
-      default: message = "SoundChannel_Play(): waveOutReset(): Unknown error."; break;
-    }
-    DIAGNOSTIC_SOUND_ERROR(message);
-    // TODO: how to robustly recover from this kind of error?
-  }
-
-  result = waveOutWrite(channel->handle, &channel->header, sizeof(channel->header));
-  if (result != MMSYSERR_NOERROR)
-  {
-    switch (result)
-    {
-      case MMSYSERR_INVALHANDLE: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): Specified device handle is invalid."); break;
-      case MMSYSERR_NODRIVER: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): No device driver is present."); break;
-      case MMSYSERR_NOMEM: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): Unable to allocate or lock memory."); break;
-      case WAVERR_UNPREPARED: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): The data block pointed to by the pwh parameter hasn't been prepared."); break;
-      default: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): unknown error");
-    }
-  }
+//  // in case a sound is currently playing, stop it first
+//  MMRESULT result;
+//  result = waveOutReset(channel->handle);
+//  if (result != MMSYSERR_NOERROR)
+//  {
+//    char* message;
+//    switch (result)
+//    {
+//      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Play(): waveOutReset(): Specified device handle is invalid."; break;
+//      case MMSYSERR_NODRIVER: message = "SoundChannel_Play(): waveOutReset(): No device driver is present."; break;
+//      case MMSYSERR_NOMEM: message = "SoundChannel_Play(): waveOutReset(): Unable to allocate or lock memory."; break;
+//      case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Play(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
+//      default: message = "SoundChannel_Play(): waveOutReset(): Unknown error."; break;
+//    }
+//    DIAGNOSTIC_SOUND_ERROR(message);
+//    // TODO: how to robustly recover from this kind of error?
+//  }
+//
+//  result = waveOutWrite(channel->handle, &channel->header, sizeof(channel->header));
+//  if (result != MMSYSERR_NOERROR)
+//  {
+//    switch (result)
+//    {
+//      case MMSYSERR_INVALHANDLE: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): Specified device handle is invalid."); break;
+//      case MMSYSERR_NODRIVER: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): No device driver is present."); break;
+//      case MMSYSERR_NOMEM: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): Unable to allocate or lock memory."); break;
+//      case WAVERR_UNPREPARED: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): The data block pointed to by the pwh parameter hasn't been prepared."); break;
+//      default: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): unknown error");
+//    }
+//  }
 }
 
 void SoundChannel_Stop(SoundChannel soundChannel)
@@ -255,11 +326,11 @@ void SoundChannel_Stop(SoundChannel soundChannel)
     return;
   }
 
-  if (!channel->handle)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Stop(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
-  }
+//  if (!channel->handle)
+//  {
+//    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Stop(): invalid soundChannel->handle (likely a dangling pointer defect)");
+//    return;
+//  }
   
   if (!channel->buffer)
   {
@@ -267,22 +338,22 @@ void SoundChannel_Stop(SoundChannel soundChannel)
     return;
   }
   
-  MMRESULT result;
-  result = waveOutReset(channel->handle);
-  if (result != MMSYSERR_NOERROR)
-  {
-    char* message;
-    switch (result)
-    {
-      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Stop(): waveOutReset(): Specified device handle is invalid."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Stop(): waveOutReset(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Stop(): waveOutReset(): Unable to allocate or lock memory."; break;
-      case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Stop(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
-      default: message = "SoundChannel_Stop(): waveOutReset(): Unknown error."; break;
-    }
-    DIAGNOSTIC_SOUND_ERROR(message);
-    // TODO: how to robustly recover from this kind of error?
-  }
+//  MMRESULT result;
+//  result = waveOutReset(channel->handle);
+//  if (result != MMSYSERR_NOERROR)
+//  {
+//    char* message;
+//    switch (result)
+//    {
+//      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Stop(): waveOutReset(): Specified device handle is invalid."; break;
+//      case MMSYSERR_NODRIVER: message = "SoundChannel_Stop(): waveOutReset(): No device driver is present."; break;
+//      case MMSYSERR_NOMEM: message = "SoundChannel_Stop(): waveOutReset(): Unable to allocate or lock memory."; break;
+//      case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Stop(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
+//      default: message = "SoundChannel_Stop(): waveOutReset(): Unknown error."; break;
+//    }
+//    DIAGNOSTIC_SOUND_ERROR(message);
+//    // TODO: how to robustly recover from this kind of error?
+//  }
 }
 
 void SoundChannel_Release(SoundChannel soundChannel)
@@ -295,32 +366,32 @@ void SoundChannel_Release(SoundChannel soundChannel)
     return;
   }
 
-  if (!channel->handle)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Release(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
-  }
+//  if (!channel->handle)
+//  {
+//    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Release(): invalid soundChannel->handle (likely a dangling pointer defect)");
+//    return;
+//  }
   
   SoundChannel_Unbind(channel);
 
-  MMRESULT result;
-  result = waveOutClose(channel->handle);
-  if (result != MMSYSERR_NOERROR)
-  {
-    char* message;
-    switch (result)
-    {
-      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Release(): waveOutClose(): Specified device handle is invalid."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Release(): waveOutClose(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Release(): waveOutClose(): Unable to allocate or lock memory."; break;
-      case WAVERR_STILLPLAYING: message = "SoundChannel_Release(): waveOutClose(): There are still buffers in the queue."; break;
-      default: message = "SoundChannel_Release(): waveOutClose(): Unknown error."; break;
-    }
-    DIAGNOSTIC_SOUND_ERROR(message);
-    // TODO: how to robustly recover from this kind of error?
-  }
-  
-  channel->handle = 0;
+//  MMRESULT result;
+//  result = waveOutClose(channel->handle);
+//  if (result != MMSYSERR_NOERROR)
+//  {
+//    char* message;
+//    switch (result)
+//    {
+//      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Release(): waveOutClose(): Specified device handle is invalid."; break;
+//      case MMSYSERR_NODRIVER: message = "SoundChannel_Release(): waveOutClose(): No device driver is present."; break;
+//      case MMSYSERR_NOMEM: message = "SoundChannel_Release(): waveOutClose(): Unable to allocate or lock memory."; break;
+//      case WAVERR_STILLPLAYING: message = "SoundChannel_Release(): waveOutClose(): There are still buffers in the queue."; break;
+//      default: message = "SoundChannel_Release(): waveOutClose(): Unknown error."; break;
+//    }
+//    DIAGNOSTIC_SOUND_ERROR(message);
+//    // TODO: how to robustly recover from this kind of error?
+//  }
+//  
+//  channel->handle = 0;
   free(channel);
 }
 

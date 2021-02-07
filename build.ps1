@@ -18,7 +18,7 @@ if (-not (Test-Path -Path "tcc\include\winapi\mmsystem.h")) {
   }
 }
 
-& tcc\tcc.exe -g -lwinmm -o lurds2.exe src\main.c
+& tcc\tcc.exe -g -lwinmm -lOle32 -lMfplat -o lurds2.exe src\main.c
 if (-not $?) { exit 1 }
 
 if ($run) {
