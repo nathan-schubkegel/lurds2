@@ -1,6 +1,34 @@
 #ifndef LURDS2_WSAPI
 #define LURDS2_WSAPI
 
+// includes and defines for my hacked-together TCC Windows SDK IAudioClient stuff
+#include <windows.h>
+#undef WINAPI_FAMILY_PARTITION // because TCC's definition of it is lame
+#include <sal.h> // for COM MIDL generator's amazingly bad output
+#include <rpcsal.h> // more MIDL generator junk
+#include <specstrings.h> // for more API documentation keywords like '__field_ecount'
+#define _SkipIksIncludes_ // so Audioclient.h doesn't bring in ks.h and ksmedia.h
+typedef LONGLONG REFERENCE_TIME; // defined in ks.h
+#include <Audioclient.h>
+#ifndef PROPERTYKEY_DEFINED // because TCC's <wtypes.h> doesn't have PROPERTYKEY
+#define PROPERTYKEY_DEFINED
+typedef struct _tagpropertykey
+    {
+    GUID fmtid;
+    DWORD pid;
+    } 	PROPERTYKEY;
+
+#endif
+typedef const PROPVARIANT *REFPROPVARIANT; // because TCC's headers don't have REFPROPVARIANT
+//typedef void __RPC_FAR* RPC_IF_HANDLE; // because TCC's rpc.h doesn't have RPC_IF_HANDLE
+#define DEFINE_ENUM_FLAG_OPERATORS(ENUMTYPE) // because TCC's winnt.h doesn't have DEFINE_ENUM_FLAG_OPERATORS
+#include <shobjidl.h>
+#include <mmdeviceapi.h>
+
+
+
+#ifdef CRAZY_GO_NUTS
+
 #define WSAPI_API_IMPORT extern __stdcall __declspec(dllimport)
 
 #include <Windows.h>
@@ -69,6 +97,8 @@ typedef struct PROPERTYKEY
 typedef PROPERTYKEY* REFPROPERTYKEY;
 typedef const PROPVARIANT* REFPROPVARIANT;
 
+#define DEVICE_STATE_ACTIVE 0x00000001
+
 // errors, for example see https://github.com/wine-mirror/wine/blob/master/include/mferror.h
 #define MF_E_BAD_STARTUP_VERSION 0xc00d36e3
 #define MF_E_DISABLED_IN_SAFEMODE 0xc00d36ef
@@ -102,6 +132,9 @@ typedef const PROPVARIANT* REFPROPVARIANT;
 #define AUDCLNT_E_INCORRECT_BUFFER_SIZE        AUDCLNT_ERR(0x015)
 #define AUDCLNT_E_BUFFER_SIZE_ERROR            AUDCLNT_ERR(0x016)
 #define AUDCLNT_E_CPUUSAGE_EXCEEDED            AUDCLNT_ERR(0x017)
+#define AUDCLNT_E_BUFFER_ERROR                 AUDCLNT_ERR(0x018)
+#define AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED      AUDCLNT_ERR(0x019)
+#define AUDCLNT_E_INVALID_DEVICE_PERIOD        AUDCLNT_ERR(0x020)
 #define AUDCLNT_S_BUFFER_EMPTY              AUDCLNT_SUCCESS(0x001)
 #define AUDCLNT_S_THREAD_ALREADY_REGISTERED AUDCLNT_SUCCESS(0x002)
 #define AUDCLNT_S_POSITION_STALLED		   AUDCLNT_SUCCESS(0x003)
@@ -241,3 +274,4 @@ DECLARE_INTERFACE_(IAudioClient, IUnknown)
 
 #endif
 
+#endif

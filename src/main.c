@@ -34,7 +34,8 @@ int APIENTRY WinMain(
     MessageBox(0, "CoInitializeEx() failed", mainWindowTitle, 0);
     return 0;
   }
-  
+
+/*
   // start wsapi
   r = MFStartup(MF_VERSION, MFSTARTUP_LITE);
   if (!SUCCEEDED(r))
@@ -50,6 +51,7 @@ int APIENTRY WinMain(
     MessageBox(0, message, mainWindowTitle, 0);
     return 0;
   }
+*/
   
   MSG msg;
   WNDCLASS wc;
@@ -104,8 +106,8 @@ int APIENTRY WinMain(
     DispatchMessage(&msg);
   }
   
-  MessageBox(0, "shutting down", 0, 0);
-  MFShutdown();
+  //MessageBox(0, "shutting down", 0, 0);
+  //MFShutdown();
 
   return msg.wParam;
 }

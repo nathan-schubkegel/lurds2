@@ -1,7 +1,6 @@
 #include "sound.h"
 
 #include "errors.h"
-#include "wsapi.h"
 #include <Objbase.h>
 
 #define DIAGNOSTIC_SOUND_ERROR(message) MessageBox(0, (message), "error in sound.c", 0);
@@ -29,58 +28,8 @@ SoundChannel SoundChannel_Open()
   }
   memset(channel, 0, sizeof(SoundChannelData));
   
-  IMMDeviceEnumerator* e;
-  e = CreateMMDeviceEnumerator();
-  if (e == 0)
-  {
-    free(channel);
-    return 0;
-  }
-  
-  IMMDevice* device;
-  device = 0;
-  HRESULT r;
-  r = e->lpVtbl->GetDefaultAudioEndpoint(e, eRender, eConsole, &device);
-  if (!SUCCEEDED(r))
-  {
-    char* message;
-    switch (r)
-    {
-      case E_NOTFOUND: message = "SoundChannel_Open(): IMMDeviceEnumerator.GetDefaultAudioEndpoint(): No device is available."; break;
-      case E_OUTOFMEMORY: message = "SoundChannel_Open(): IMMDeviceEnumerator.GetDefaultAudioEndpoint(): Out of memory."; break;
-      default: message = "SoundChannel_Open(): IMMDeviceEnumerator.GetDefaultAudioEndpoint(): unknown error."; break;
-    }
-    DIAGNOSTIC_SOUND_ERROR(message);
 
-    e->lpVtbl->Release(e);
-    free(channel);
-    return 0;
-  }
 
-  IAudioClient* audioClient;
-  audioClient = 0;
-  if (!SUCCEEDED(r = device->lpVtbl->Activate(device, &IID_IAudioClient, CLSCTX_INPROC_SERVER, 0, &audioClient)))
-  {
-    char* message;
-    switch (r)
-    {
-      case E_NOINTERFACE: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): The object does not support the requested interface type."; break;
-      case E_POINTER: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): Parameter ppInterface is NULL."; break;
-      case E_INVALIDARG: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): The pActivationParams parameter must be NULL for the specified interface; or pActivationParams points to invalid data."; break;
-      case E_OUTOFMEMORY: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): Out of memory."; break;
-      case AUDCLNT_E_DEVICE_INVALIDATED: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): The user has removed either the audio endpoint device or the adapter device that the endpoint device connects to."; break;
-      default: message = "SoundChannel_Open(): IMMDevice.Activate(IAudioClient): unknown error."; break;
-    }
-    DIAGNOSTIC_SOUND_ERROR(message);
-
-    device->lpVtbl->Release(device);
-    e->lpVtbl->Release(e);
-    free(channel);
-    return 0;
-  }
-  
-  //r = audioClient->lpVtbl->Initialize(audioClient, AUDCLNT_SHAREMODE_SHARED, 0, ?, 0, &waveFormat, )
-  
 //  LPWSTR id;
 //  id = 0;
 //  if (!SUCCEEDED(r = device->lpVtbl->GetId(device, &id))) {
@@ -94,9 +43,9 @@ SoundChannel SoundChannel_Open()
   
   // quackery
   //CoTaskMemFree(id);
-  audioClient->lpVtbl->Release(audioClient);
-  device->lpVtbl->Release(device);
-  e->lpVtbl->Release(e);
+//  audioClient->lpVtbl->Release(audioClient);
+//  device->lpVtbl->Release(device);
+//  e->lpVtbl->Release(e);
 
 //  WAVEFORMATEX waveFormat;
 //  memset(&waveFormat, 0, sizeof(waveFormat));
