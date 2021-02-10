@@ -144,12 +144,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             else
             {
               MessageBox(0, "wurked", 0, 0);
-              SoundChannel_Bind(soundChannel, soundBuffer, 0);
             }
             return 0;
 
           case 1339:
-            SoundChannel_Play(soundChannel);
+            SoundChannel_Play(soundChannel, soundBuffer, 0);
             break;
 
           case 1340:

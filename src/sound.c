@@ -97,20 +97,6 @@ SoundChannel SoundChannel_Open()
 
 void SoundChannel_Unbind(SoundChannelData* channel)
 {
-  if (!channel)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Unbind(): null channel arg provided");
-    return;
-  }
-
-#ifdef LURDS2_USE_SOUND_MMEAPI
-  if (!channel->handle)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Unbind(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
-  }
-#endif
-
   if (channel->buffer)
   {
 #ifdef LURDS2_USE_SOUND_MMEAPI
@@ -154,52 +140,15 @@ void SoundChannel_Unbind(SoundChannelData* channel)
   }
 }
 
-void SoundChannel_Bind(SoundChannel soundChannel, SoundBuffer soundBuffer, int loop)
+int SoundChannel_Bind(SoundChannelData* channel, SoundBufferData* buffer, int loop)
 {
-  SoundChannelData* channel = (SoundChannelData*)soundChannel;
-  SoundBufferData* buffer = (SoundBufferData*)soundBuffer;
-
-  if (!channel)
+  // if 'buffer' is already bound, then no-op
+  if (buffer && buffer == channel->buffer)
   {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Bind(): null soundChannel arg provided");
-    return;
+    return 1;
   }
 
-#ifdef LURDS2_USE_SOUND_MMEAPI
-  if (!channel->handle)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Bind(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
-  }
-#endif
-  
-  if (!buffer)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Bind(): null soundBuffer arg provided");
-    return;
-  }
-
-  // in case a sound is currently playing, gotta stop it first
   SoundChannel_Unbind(channel);
-
-  // check these after unbinding because it catches gross corner case of rebinding to same buffer w/ dangling pointer
-  if (buffer->refcount < 1)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Bind(): soundBuffer arg has bad refcount");
-    return;
-  }
-
-  if (!buffer->data)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Bind(): soundBuffer arg has no data");
-    return;
-  }
-
-  if (buffer->length < 0)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Bind(): soundBuffer arg has negative length");
-    return;
-  }
 
 #ifdef LURDS2_USE_SOUND_MMEAPI
   // inspect *.wav file header
@@ -227,21 +176,29 @@ void SoundChannel_Bind(SoundChannel soundChannel, SoundBuffer soundBuffer, int l
       default: message = "SoundChannel_Bind(): waveOutPrepareHeader(): unknown error"; break;
     }
     DIAGNOSTIC_SOUND_ERROR(message);
-    return;
+    return 0;
   }
 #endif
   
   channel->buffer = buffer;
   buffer->refcount++;
+  return 1;
 }
 
-void SoundChannel_Play(SoundChannel soundChannel)
+void SoundChannel_Play(SoundChannel soundChannel, SoundBuffer soundBuffer, int loop)
 {
   SoundChannelData* channel = (SoundChannelData*)soundChannel;
+  SoundBufferData* buffer = (SoundBufferData*)soundBuffer;
 
   if (!channel)
   {
     DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): null soundChannel arg provided");
+    return;
+  }
+
+  if (!buffer)
+  {
+    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): null soundBuffer arg provided");
     return;
   }
 
@@ -253,9 +210,14 @@ void SoundChannel_Play(SoundChannel soundChannel)
   }
 #endif
 
-  if (!channel->buffer)
+  if (!buffer->data)
   {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): soundChannel not yet bound to SoundBuffer");
+    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): null soundBuffer->data (likely a dangling pointer defect)");
+    return;
+  }
+
+  if (!SoundChannel_Bind(channel, soundBuffer, loop))
+  {
     return;
   }
 
@@ -313,7 +275,8 @@ void SoundChannel_Stop(SoundChannel soundChannel)
 
   if (!channel->buffer)
   {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Stop(): soundChannel not yet bound to SoundBuffer");
+    // forgive someone calling 'stop' before calling 'play'
+    //DIAGNOSTIC_SOUND_ERROR("SoundChannel_Stop(): soundChannel not yet bound to SoundBuffer");
     return;
   }
   

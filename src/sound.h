@@ -8,8 +8,7 @@ typedef void* SoundBuffer;
 // You must bind a SoundBuffer to it; then play or stop.
 // (you may create multiple SoundChannels to play multiple sounds simultaneously)
 SoundChannel SoundChannel_Open();
-void         SoundChannel_Bind(SoundChannel soundChannel, SoundBuffer soundBuffer, int loop);
-void         SoundChannel_Play(SoundChannel soundChannel);
+void         SoundChannel_Play(SoundChannel soundChannel, SoundBuffer soundBuffer, int loop);
 void         SoundChannel_Stop(SoundChannel soundChannel);
 void         SoundChannel_Release(SoundChannel soundChannel);
 
