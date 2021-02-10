@@ -6,6 +6,31 @@
 
 #define DIAGNOSTIC_SOUND_ERROR(message) MessageBox(0, (message), "error in sound.c", 0);
 
+typedef struct __attribute__((packed)) WaveFileHeader {
+    // RIFF Header
+    char riff_header[4]; // Contains "RIFF"
+    unsigned int wav_size; // Size of the wav portion of the file, which follows the first 8 bytes. File size - 8
+    char wave_header[4]; // Contains "WAVE"
+    
+    // Format Header
+    char fmt_header[4]; // Contains "fmt " (includes trailing space)
+    unsigned int fmt_chunk_size; // Should be 16 for PCM
+    unsigned short audio_format; // Should be 1 for uncompressed wav (PCM). other values indicate compression.
+    unsigned short num_channels; // Mono = 1, Stereo = 2, etc.
+    unsigned int sample_rate;    // 8000, 44100, etc.
+    unsigned int byte_rate; // Number of bytes per second. sample_rate * num_channels * Bytes Per Sample
+    unsigned short block_align; // == NumChannels * BitsPerSample/8 
+                                // The number of bytes for one sample including
+                                // all channels. I wonder what happens when
+                                // this number isn't an integer?
+    unsigned short bits_per_sample; // 8 bits = 8, 16 bits = 16, etc.
+    
+    // Data
+    char data_header[4]; // Contains "data"
+    int data_bytes; // Number of bytes in data. Number of samples * num_channels * sample byte size
+    // uint8_t bytes[]; // Remainder of wave file is bytes
+} WaveFileHeader;
+
 typedef struct SoundBufferData {
   int refcount;
   char* data;
@@ -177,11 +202,15 @@ void SoundChannel_Bind(SoundChannel soundChannel, SoundBuffer soundBuffer, int l
   }
 
 #ifdef LURDS2_USE_SOUND_MMEAPI
+  // inspect *.wav file header
+  WaveFileHeader* fileHeader;
+  fileHeader = (WaveFileHeader*)buffer->data;
+
   LPWAVEHDR header;
   header = &channel->header;
   memset(header, 0, sizeof(*header));
-  header->lpData = buffer->data;
-  header->dwBufferLength = buffer->length;
+  header->lpData = buffer->data + sizeof(WaveFileHeader);
+  header->dwBufferLength = buffer->length - sizeof(WaveFileHeader);
   header->dwFlags = 0 | (loop ? (WHDR_BEGINLOOP | WHDR_ENDLOOP) : 0);
   header->dwLoops = loop ? 0xffffffff : 0;
 
@@ -353,77 +382,167 @@ void SoundChannel_Release(SoundChannel soundChannel)
 
 SoundBuffer SoundBuffer_LoadFromFileW(wchar_t * filePath)
 {
+  HANDLE h;
   SoundBufferData * buffer;
+  char * data;
+
+  data = 0;
+  buffer = 0;
+  h = INVALID_HANDLE_VALUE;
+
   buffer = malloc(sizeof(SoundBufferData));
   if (buffer == 0)
   {
     DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): failed to allocate memory SoundBufferData struct");
-    return 0;
+    goto error;
   }
 
   memset(buffer, 0, sizeof(SoundBufferData));
-
-  HANDLE h;
   h = CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
   if (h == INVALID_HANDLE_VALUE)
   {
     DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundBuffer_LoadFromFileW(): CreateFileW(): "));
-    free(buffer);
-    return 0;
+    goto error;
   }
-  
+
   DWORD size;
   DWORD sizeHigh;
   size = GetFileSize(h, &sizeHigh);
   if (INVALID_FILE_SIZE == size)
   {
     DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundBuffer_LoadFromFileW(): GetFileSize(): "));
-    free(buffer);
-    CloseHandle(h);
-    return 0;
+    goto error;
   }
 
-  if (size > 100000000 || sizeHigh > 0)
+  if (size > 2000000 || sizeHigh > 0)
   {
     DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): sound file too big");
-    free(buffer);
-    CloseHandle(h);
-    return 0;
+    goto error;
   }
 
-  char * data;
   data = malloc(size);
   if (data == 0)
   {
     DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): failed to allocate memory for sound from file");
-    free(buffer);
-    CloseHandle(h);
-    return 0;
+    goto error;
   }
-  
+
   DWORD numBytesRead;
   if (!ReadFile(h, data, size, &numBytesRead, 0))
   {
     DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundBuffer_LoadFromFileW(): ReadFile(): "));
-    CloseHandle(h);
-    free(buffer);
-    free(data);
-    return 0;
+    goto error;
   }
-  
+
   if (numBytesRead != size)
   {
     DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected numByteRead from sound file");
-    CloseHandle(h);
-    free(buffer);
-    free(data);
-    return 0;
+    goto error;
   }
 
+  // inspect *.wav file header
+  WaveFileHeader* header;
+  header = (WaveFileHeader*)data;
+  if (size < sizeof(WaveFileHeader)) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): sound file not large enough to hold wave file header");
+    goto error;
+  }
+
+  if (memcmp(header->riff_header, "RIFF", 4) != 0) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->riff_header in sound file");
+    goto error;
+  }
+
+  if (header->wav_size > size - 8) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): too large header->wav_size in sound file");
+    goto error;
+  }
+  
+  if (memcmp(header->wave_header, "WAVE", 4) != 0) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->wave_header in sound file");
+    goto error;
+  }
+  
+  if (memcmp(header->fmt_header, "fmt ", 4) != 0) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->fmt_header in sound file");
+    goto error;
+  }
+  
+  if (header->fmt_chunk_size != 16) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->fmt_chunk_size in sound file");
+    goto error;
+  }
+
+  if (header->audio_format != 1) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->audio_format in sound file");
+    goto error;
+  }
+
+  if (header->num_channels > 2 || header->num_channels == 0) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->num_channels in sound file");
+    goto error;
+  }
+
+  if (header->sample_rate < 11025 || header->sample_rate > 50000) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->sample_rate in sound file");
+    goto error;
+  }
+
+  if (header->bits_per_sample % 8 != 0 || header->bits_per_sample > 32) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->bits_per_sample in sound file");
+    goto error;
+  }
+
+  if (header->block_align != header->num_channels * (header->bits_per_sample / 8)) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->block_align in sound file");
+    goto error;
+  }
+
+  if (header->byte_rate != header->sample_rate * header->num_channels * (header->bits_per_sample / 8)) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->byte_rate in sound file");
+    goto error;
+  }
+
+  if (memcmp(header->data_header, "data", 4) != 0) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->data_header in sound file");
+    goto error;
+  }
+
+  if (header->data_bytes != size - sizeof(WaveFileHeader)) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->data_bytes in sound file");
+    goto error;
+  }
+  
+  // now the disappointing part... right now the code is structured to assume lurds2 resource wav format
+  if (header->num_channels != 1) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): expected lurds2 sounds to have header->num_channels == 1");
+    goto error;
+  }
+  if (header->sample_rate != 11025) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): expected lurds2 sounds to have header->sample_rate == 11025");
+    goto error;
+  }
+  if (header->bits_per_sample != 8) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): expected lurds2 sounds to have header->bits_per_sample == 8");
+    goto error;
+  }
+  if (header->block_align != header->bits_per_sample * header->num_channels / 8) {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): expected lurds2 sounds to have header->block_align == 1");
+    goto error;
+  }
+
+  // ding fries are done
+  CloseHandle(h);
   buffer->data = data;
   buffer->length = size;
   buffer->refcount = 1;
   return buffer;
+  
+error:
+  if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+  if (buffer != 0) free(buffer);
+  if (data != 0) free(data);
+  return 0;
 }
 
 void SoundBuffer_Release(SoundBuffer soundBuffer)
