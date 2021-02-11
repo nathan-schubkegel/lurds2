@@ -95,7 +95,7 @@ SoundChannel SoundChannel_Open()
   return channel;
 }
 
-void SoundChannel_Unbind(SoundChannelData* channel)
+static void SoundChannel_Unbind(SoundChannelData* channel)
 {
   if (channel->buffer)
   {
@@ -140,7 +140,7 @@ void SoundChannel_Unbind(SoundChannelData* channel)
   }
 }
 
-int SoundChannel_Bind(SoundChannelData* channel, SoundBufferData* buffer, int loop)
+static int SoundChannel_Bind(SoundChannelData* channel, SoundBufferData* buffer, int loop)
 {
   // if 'buffer' is already bound, then no-op
   if (buffer && buffer == channel->buffer)

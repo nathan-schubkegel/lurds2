@@ -1,7 +1,9 @@
 #include <windows.h>
+#include <stdio.h>
 
 #include "sound.c"
 #include "errors.c"
+#include "performanceCounter.c"
 
 char mainWindowClassName[] = "LURDS2";
 char mainWindowTitle[]   = "Lurds of the Rolm 2";
@@ -17,6 +19,7 @@ void SetFullScreen(int yes, HWND hwnd);
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top);
 void PlayPeasants();
+void DrawPeasantLabels(HDC hdc);
 
 int APIENTRY WinMain(
   HINSTANCE hInstance,
@@ -203,6 +206,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
       SetTextColor(hdc, RGB(240,240,96));
       SetBkMode(hdc, TRANSPARENT);
       DrawText(hdc, mainWindowContent, -1, &rc, DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+      
+      DrawPeasantLabels(hdc);
 
       EndPaint(hwnd, &ps);
       break;
@@ -316,6 +321,11 @@ SoundChannel channels[3];
 SoundBuffer arrowFire;
 SoundBuffer arrowHit;
 SoundBuffer die[3];
+char peasantFirstOpenTime[1000];
+char peasantRemainingOpenTime[1000];
+char peasantLoadTime[1000];
+char peasantPlayTime[1000];
+LONGLONG peasantPlayTicks;
 
 void Arrow1TimerProc(
   HWND hwnd,
@@ -324,7 +334,12 @@ void Arrow1TimerProc(
   DWORD msSinceSystemStart
 )
 {
+  PerformanceCounter startTime;
+  startTime = PerformanceCounter_Start();
+  
   SoundChannel_Play(channels[0], arrowFire, 0);
+
+  peasantPlayTicks += PerformanceCounter_MeasureTicks(startTime);
 }
 
 void Arrow2TimerProc(
@@ -334,7 +349,12 @@ void Arrow2TimerProc(
   DWORD msSinceSystemStart
 )
 {
+  PerformanceCounter startTime;
+  startTime = PerformanceCounter_Start();
+  
   SoundChannel_Play(channels[0], arrowFire, 0);
+
+  peasantPlayTicks += PerformanceCounter_MeasureTicks(startTime);
 }
 
 int hitCount = 0;
@@ -346,6 +366,9 @@ void HitTimerProc(
   DWORD msSinceSystemStart
 )
 {
+  PerformanceCounter startTime;
+  startTime = PerformanceCounter_Start();
+
   SoundChannel_Play(channels[1], arrowHit, 0);
   hitCount++;
   if (hitCount == 2)
@@ -361,24 +384,69 @@ void HitTimerProc(
     SoundChannel_Play(channels[2], die[2], 0);
     hitCount = 0;
   }
+  
+  peasantPlayTicks += PerformanceCounter_MeasureTicks(startTime);
+}
+
+void UpdatePeasantLabelsProc(
+  HWND hwnd,
+  UINT message,
+  UINT_PTR id,
+  DWORD msSinceSystemStart
+)
+{
+  double seconds;
+  seconds = PerformanceCounter_TicksToSeconds(peasantPlayTicks);
+  sprintf(peasantPlayTime, "SoundBuffer_Play()s took %f seconds", seconds);
+  InvalidateRect(mainWindowHandle, 0, 1);
+}
+
+void DrawPeasantLabels(HDC hdc)
+{
+  RECT rc;
+  GetClientRect(mainWindowHandle, &rc);
+  SetTextColor(hdc, RGB(240,240,96));
+  SetBkMode(hdc, TRANSPARENT);
+  rc.top += 80;
+  DrawText(hdc, peasantFirstOpenTime, -1, &rc, DT_SINGLELINE);
+  rc.top += 30;
+  DrawText(hdc, peasantRemainingOpenTime, -1, &rc, DT_SINGLELINE);
+  rc.top += 30;
+  DrawText(hdc, peasantLoadTime, -1, &rc, DT_SINGLELINE);
+  rc.top += 30;
+  DrawText(hdc, peasantPlayTime, -1, &rc, DT_SINGLELINE);
 }
 
 void PlayPeasants()
 {
   if (peasantsLoaded) return;
   peasantsLoaded = 1;
-  
+
+  PerformanceCounter startTime;
+  double seconds;
+
+  startTime = PerformanceCounter_Start();
   channels[0] = SoundChannel_Open();
+  seconds = PerformanceCounter_MeasureSeconds(startTime);
+  sprintf(peasantFirstOpenTime, "first SoundChannel_Open() took %f seconds", seconds);
+
+  startTime = PerformanceCounter_Start();
   channels[1] = SoundChannel_Open();
   channels[2] = SoundChannel_Open();
-  
+  seconds = PerformanceCounter_MeasureSeconds(startTime);
+  sprintf(peasantRemainingOpenTime, "other SoundChannel_Open()s took %f seconds", seconds);
+
+  startTime = PerformanceCounter_Start();
   die[0] = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Deadguy2.wav");
   die[1] = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Deadguy3.wav");
   die[2] = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Deadguy4.wav");
   arrowFire = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Bowmen1.wav");
   arrowHit = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Bow_hit.wav");
+  seconds = PerformanceCounter_MeasureSeconds(startTime);
+  sprintf(peasantLoadTime, "SoundBuffer_LoadFromFileW()s took %f seconds", seconds);
 
   SetTimer(mainWindowHandle, 123, 500, (TIMERPROC)Arrow1TimerProc);
   SetTimer(mainWindowHandle, 124, 455, (TIMERPROC)Arrow2TimerProc);
   SetTimer(mainWindowHandle, 125, 700, (TIMERPROC)HitTimerProc);
+  SetTimer(mainWindowHandle, 126, 300, (TIMERPROC)UpdatePeasantLabelsProc);
 }

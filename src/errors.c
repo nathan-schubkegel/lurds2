@@ -40,7 +40,7 @@ char* GetLastErrorMessageWithPrefix(char * prefix)
   return buffer;
 }
 
-DWORD WINAPI ShowFatalErrorThenKillProcessProc(LPVOID lpParameter)
+static DWORD WINAPI ShowFatalErrorThenKillProcessProc(LPVOID lpParameter)
 {
   MessageBox(0, (char*)lpParameter, "lurds2 fatal error", 0);
 }
@@ -56,7 +56,7 @@ void ShowFatalErrorThenKillProcess(char * message)
   ExitProcess(1);
 }
 
-DWORD WINAPI ShowDiagnosticErrorProc(LPVOID lpParameter)
+static DWORD WINAPI ShowDiagnosticErrorProc(LPVOID lpParameter)
 {
   MessageBox(0, (char*)lpParameter, "lurds2 diagnostic error", 0);
 }
