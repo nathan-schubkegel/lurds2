@@ -159,7 +159,7 @@ int SoundChannel_Bind(SoundChannelData* channel, SoundBufferData* buffer, int lo
   header = &channel->header;
   memset(header, 0, sizeof(*header));
   header->lpData = buffer->data + sizeof(WaveFileHeader);
-  header->dwBufferLength = buffer->length - sizeof(WaveFileHeader);
+  header->dwBufferLength = fileHeader->data_bytes;
   header->dwFlags = 0 | (loop ? (WHDR_BEGINLOOP | WHDR_ENDLOOP) : 0);
   header->dwLoops = loop ? 0xffffffff : 0;
 
@@ -471,7 +471,7 @@ SoundBuffer SoundBuffer_LoadFromFileW(wchar_t * filePath)
     goto error;
   }
 
-  if (header->data_bytes != size - sizeof(WaveFileHeader)) {
+  if (header->data_bytes > size - sizeof(WaveFileHeader)) {
     DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): unexpected header->data_bytes in sound file");
     goto error;
   }

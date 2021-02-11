@@ -16,6 +16,7 @@ void CenterWindow(HWND hWnd);
 void SetFullScreen(int yes, HWND hwnd);
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top);
+void PlayPeasants();
 
 int APIENTRY WinMain(
   HINSTANCE hInstance,
@@ -66,6 +67,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1340, "Stop", 50, 240, 10);
   CreateButton(mainWindowHandle, 1341, "KillBuffer", 100, 300, 10);
   CreateButton(mainWindowHandle, 1342, "Kill", 50, 410, 10);
+  CreateButton(mainWindowHandle, 1343, "Peasants", 90, 10, 50);
   
   mainWindowFullScreen = 0;
 
@@ -78,7 +80,6 @@ int APIENTRY WinMain(
 
   return msg.wParam;
 }
-
 
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -164,6 +165,9 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             SoundChannel_Release(soundChannel);
             soundChannel = 0;
             break;
+            
+          case 1343:
+            PlayPeasants();
 
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);
@@ -305,4 +309,76 @@ void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, in
     (HMENU)id,       // No menu, but for child controls this is the "control identifier" passed to the parent control on button click event
     (HINSTANCE)GetWindowLongPtr(hwnd_parent, GWLP_HINSTANCE), 
     NULL);      // Pointer not needed.
+}
+
+int peasantsLoaded;
+SoundChannel channels[3];
+SoundBuffer arrowFire;
+SoundBuffer arrowHit;
+SoundBuffer die[3];
+
+void Arrow1TimerProc(
+  HWND hwnd,
+  UINT message,
+  UINT_PTR id,
+  DWORD msSinceSystemStart
+)
+{
+  SoundChannel_Play(channels[0], arrowFire, 0);
+}
+
+void Arrow2TimerProc(
+  HWND hwnd,
+  UINT message,
+  UINT_PTR id,
+  DWORD msSinceSystemStart
+)
+{
+  SoundChannel_Play(channels[0], arrowFire, 0);
+}
+
+int hitCount = 0;
+
+void HitTimerProc(
+  HWND hwnd,
+  UINT message,
+  UINT_PTR id,
+  DWORD msSinceSystemStart
+)
+{
+  SoundChannel_Play(channels[1], arrowHit, 0);
+  hitCount++;
+  if (hitCount == 2)
+  {
+    SoundChannel_Play(channels[2], die[0], 0);
+  }
+  else if (hitCount == 3)
+  {
+    SoundChannel_Play(channels[2], die[1], 0);
+  }
+  else if (hitCount == 4)
+  {
+    SoundChannel_Play(channels[2], die[2], 0);
+    hitCount = 0;
+  }
+}
+
+void PlayPeasants()
+{
+  if (peasantsLoaded) return;
+  peasantsLoaded = 1;
+  
+  channels[0] = SoundChannel_Open();
+  channels[1] = SoundChannel_Open();
+  channels[2] = SoundChannel_Open();
+  
+  die[0] = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Deadguy2.wav");
+  die[1] = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Deadguy3.wav");
+  die[2] = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Deadguy4.wav");
+  arrowFire = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Bowmen1.wav");
+  arrowHit = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Bow_hit.wav");
+
+  SetTimer(mainWindowHandle, 123, 500, (TIMERPROC)Arrow1TimerProc);
+  SetTimer(mainWindowHandle, 124, 455, (TIMERPROC)Arrow2TimerProc);
+  SetTimer(mainWindowHandle, 125, 700, (TIMERPROC)HitTimerProc);
 }
