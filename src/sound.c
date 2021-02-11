@@ -4,7 +4,7 @@
 
 #define LURDS2_USE_SOUND_MMEAPI
 
-#define DIAGNOSTIC_SOUND_ERROR(message) MessageBox(0, (message), "error in sound.c", 0);
+#define DIAGNOSTIC_SOUND_ERROR(message) DIAGNOSTIC_ERROR(message);
 
 typedef struct __attribute__((packed)) WaveFileHeader {
     // RIFF Header

@@ -1,5 +1,7 @@
 #include "errors.h"
 
+#include <Windows.h>
+
 char* GetLastErrorMessage()
 {
   return GetLastErrorMessageWithPrefix(0);
@@ -36,4 +38,35 @@ char* GetLastErrorMessageWithPrefix(char * prefix)
     buffer[sizeof(buffer) - 1] = 0;
   }
   return buffer;
+}
+
+DWORD WINAPI ShowFatalErrorThenKillProcessProc(LPVOID lpParameter)
+{
+  MessageBox(0, (char*)lpParameter, "lurds2 fatal error", 0);
+}
+
+void ShowFatalErrorThenKillProcess(char * message)
+{
+  HANDLE t;
+  t = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ShowFatalErrorThenKillProcessProc, message, 0, 0);
+  if (t != 0)
+  {
+    WaitForSingleObject(t, INFINITE);
+  }
+  ExitProcess(1);
+}
+
+DWORD WINAPI ShowDiagnosticErrorProc(LPVOID lpParameter)
+{
+  MessageBox(0, (char*)lpParameter, "lurds2 diagnostic error", 0);
+}
+
+void ShowDiagnosticError(char * message)
+{
+  HANDLE t;
+  t = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ShowDiagnosticErrorProc, message, 0, 0);
+  if (t != 0)
+  {
+    WaitForSingleObject(t, INFINITE);
+  }
 }
