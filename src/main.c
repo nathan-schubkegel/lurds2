@@ -140,7 +140,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
               MessageBox(0, "no, it's already loaded", 0, 0);
               return 0;
             }
-            soundBuffer = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm III\\Kt174_4.wav");
+            soundBuffer = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Kt174_4.wav");
             if (soundBuffer == 0)
             {
               MessageBox(0, "failed to load eet from file", 0, 0);

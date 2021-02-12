@@ -9,16 +9,16 @@
 typedef struct __attribute__((packed)) WaveFileHeader {
     // RIFF Header
     char riff_header[4]; // Contains "RIFF"
-    unsigned int wav_size; // Size of the wav portion of the file, which follows the first 8 bytes. File size - 8
+    unsigned long wav_size; // Size of the wav portion of the file, which follows the first 8 bytes. File size - 8
     char wave_header[4]; // Contains "WAVE"
     
     // Format Header
     char fmt_header[4]; // Contains "fmt " (includes trailing space)
-    unsigned int fmt_chunk_size; // Should be 16 for PCM
+    unsigned long fmt_chunk_size; // Should be 16 for PCM
     unsigned short audio_format; // Should be 1 for uncompressed wav (PCM). other values indicate compression.
     unsigned short num_channels; // Mono = 1, Stereo = 2, etc.
-    unsigned int sample_rate;    // 8000, 44100, etc.
-    unsigned int byte_rate; // Number of bytes per second. sample_rate * num_channels * Bytes Per Sample
+    unsigned long sample_rate;    // 8000, 44100, etc.
+    unsigned long byte_rate; // Number of bytes per second. sample_rate * num_channels * Bytes Per Sample
     unsigned short block_align; // == NumChannels * BitsPerSample/8 
                                 // The number of bytes for one sample including
                                 // all channels. I wonder what happens when
@@ -27,17 +27,18 @@ typedef struct __attribute__((packed)) WaveFileHeader {
     
     // Data
     char data_header[4]; // Contains "data"
-    int data_bytes; // Number of bytes in data. Number of samples * num_channels * sample byte size
+    long data_bytes; // Number of bytes in data. Number of samples * num_channels * sample byte size
     // uint8_t bytes[]; // Remainder of wave file is bytes
 } WaveFileHeader;
 
 typedef struct SoundBufferData {
-  int refcount;
+  volatile long refcount;
   char* data;
-  int length;
+  long length;
 } SoundBufferData;
 
 typedef struct SoundChannelData {
+  volatile long refcount;
 #ifdef LURDS2_USE_SOUND_MMEAPI
   HWAVEOUT handle;
   WAVEHDR header; // data associated with currently-playing sound
@@ -45,8 +46,111 @@ typedef struct SoundChannelData {
   SoundBufferData* buffer;
 } SoundChannelData;
 
+void SoundChannel_Open_Handler(SoundChannelData* channel);
+void SoundChannel_Play_Handler(SoundChannelData* channel, SoundBufferData* buffer, long loop);
+void SoundChannel_Stop_Handler(SoundChannelData* channel);
+void SoundChannel_Release_Handler(SoundChannelData* channel);
+void SoundBuffer_LoadFromFileW_Handler(SoundBufferData * buffer, wchar_t * filePath);
+void SoundBuffer_Release_Handler(SoundBufferData* buffer);
+
+
+// the threadHandle that's running to do the work
+static volatile HANDLE SoundThread;
+static volatile DWORD SoundThreadId;
+static volatile long SoundThreadInitSpinLock;
+static CRITICAL_SECTION SoundThreadCriticalSection;
+static volatile long SoundThreadCriticalSectionInitialized;
+
+#define WM_SOUNDCHANNEL_OPEN (WM_USER + 1)
+#define WM_SOUNDCHANNEL_PLAY (WM_USER + 2)
+#define WM_SOUNDCHANNEL_PLAYLOOP (WM_USER + 3)
+#define WM_SOUNDCHANNEL_STOP (WM_USER + 4)
+#define WM_SOUNDCHANNEL_RELEASE (WM_USER + 5)
+#define WM_SOUNDBUFFER_LOADFROMFILE (WM_USER + 6)
+#define WM_SOUNDBUFFER_RELEASE (WM_USER + 7)
+
+static DWORD WINAPI SoundThreadProc(LPVOID lpParameter)
+{
+  // establish the thread's message queue by calling one of the message queue methods
+  MSG msg;
+  PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
+  
+  // record that SoundThreadProc is now established
+  volatile long* established;
+  established = (long*)lpParameter;
+  *established = 1;
+
+  // process messages forever
+  while (1)
+  {
+    BOOL result = GetMessage(&msg, 0, 0, 0);
+    switch (result)
+    {
+      case 0: return; // application requested to terminate
+      case -1: 
+        DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundThreadProc(): GetMessage(): "));
+        return;
+    }
+        
+    switch (msg.message)
+    {
+      case WM_SOUNDCHANNEL_OPEN: SoundChannel_Open_Handler(*(SoundChannelData**)&msg.wParam); break;
+      case WM_SOUNDCHANNEL_PLAY: 
+        SoundChannel_Play_Handler(*(SoundChannelData**)&msg.wParam, *(SoundBufferData**)&msg.lParam, 0);
+        break;
+      case WM_SOUNDCHANNEL_PLAYLOOP: 
+        SoundChannel_Play_Handler(*(SoundChannelData**)&msg.wParam, *(SoundBufferData**)&msg.lParam, 1);
+        break;
+      case WM_SOUNDCHANNEL_STOP: SoundChannel_Stop_Handler(*(SoundChannelData**)&msg.wParam); break;
+      case WM_SOUNDCHANNEL_RELEASE: SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam); break;
+      case WM_SOUNDBUFFER_LOADFROMFILE: SoundBuffer_LoadFromFileW_Handler(*(SoundBufferData**)&msg.wParam, *(wchar_t**)&msg.lParam); break;
+      case WM_SOUNDBUFFER_RELEASE: SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.wParam); break;
+    }
+  }
+}
+
+void SoundThreadSetup()
+{
+  if (SoundThread == 0)
+  {
+    while (0 != InterlockedCompareExchange(&SoundThreadInitSpinLock, 1, 0))
+    {
+    }
+
+    if (!SoundThreadCriticalSectionInitialized)
+    {
+      InitializeCriticalSection(&SoundThreadCriticalSection);
+      SoundThreadCriticalSectionInitialized = 1;
+    }
+
+    if (SoundThread == 0)
+    {
+      HWND handle;
+      volatile long established;
+      DWORD id;
+      established = 0;
+      if (0 == (handle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)SoundThreadProc, (void*)&established, 0, &id)))
+      {
+        DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundThreadSetup(): CreateThread(): "));
+      }
+      else
+      {
+        // wait for thread to establish message queue, to guarantee that no calls to PostThreadMessage() fail for that reason
+        while (!established)
+        {
+        }
+        SoundThread = handle;
+        SoundThreadId = id;
+      }
+    }
+    InterlockedDecrement(&SoundThreadInitSpinLock);    
+  }
+}
+
 SoundChannel SoundChannel_Open()
 {
+  SoundThreadSetup();
+  
   SoundChannelData* channel;
   channel = malloc(sizeof(SoundChannelData));
   if (channel == 0)
@@ -55,6 +159,21 @@ SoundChannel SoundChannel_Open()
     return 0;
   }
   memset(channel, 0, sizeof(SoundChannelData));
+  InterlockedIncrement(&channel->refcount); // 1 for caller holding the reference
+  InterlockedIncrement(&channel->refcount); // 1 for SoundThread using it
+
+  if (!PostThreadMessage(SoundThreadId, WM_SOUNDCHANNEL_OPEN, *(WPARAM*)&channel, 0))
+  {
+    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundChannel_Open(): PostThreadMessage(): "));
+    free(channel);
+    return 0;
+  }
+  return channel;
+}
+
+void SoundChannel_Open_Handler(SoundChannelData* channel)
+{
+  EnterCriticalSection(&SoundThreadCriticalSection);
 
 #ifdef LURDS2_USE_SOUND_MMEAPI
   WAVEFORMATEX waveFormat;
@@ -85,107 +204,119 @@ SoundChannel SoundChannel_Open()
       default: message = "SoundChannel_Open(): waveOutOpen(): Unknown error."; break;
     }
     DIAGNOSTIC_SOUND_ERROR(message);
-    free(channel);
-    return 0;
   }
-
-  channel->handle = h;
+  else
+  {
+    channel->handle = h;
+  }
 #endif
-
-  return channel;
+  SoundChannel_Release_Handler(channel);
+  LeaveCriticalSection(&SoundThreadCriticalSection);
 }
 
-static void SoundChannel_Unbind(SoundChannelData* channel)
+static void SoundChannel_Unbind_Handler(SoundChannelData* channel)
 {
+  // NOTE: it's important this method ignore channel->refcount
+  // (because sometimes it'll be 0 while this method runs, and that's valid)
+  
   if (channel->buffer)
   {
 #ifdef LURDS2_USE_SOUND_MMEAPI
-    // in case a sound is currently playing, gotta stop it first
-    MMRESULT result;
-    result = waveOutReset(channel->handle);
-    if (result != MMSYSERR_NOERROR)
+    // be graceful - it's possible that SoundChannel_Open_Handler couldn't open the handle
+    if (channel->handle)
     {
-      char* message;
-      switch (result)
+      // in case a sound is currently playing, gotta stop it first
+      MMRESULT result;
+      result = waveOutReset(channel->handle);
+      if (result != MMSYSERR_NOERROR)
       {
-        case MMSYSERR_INVALHANDLE: message = "SoundChannel_Unbind(): waveOutReset(): Specified device handle is invalid."; break;
-        case MMSYSERR_NODRIVER: message = "SoundChannel_Unbind(): waveOutReset(): No device driver is present."; break;
-        case MMSYSERR_NOMEM: message = "SoundChannel_Unbind(): waveOutReset(): Unable to allocate or lock memory."; break;
-        case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Unbind(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
-        default: message = "SoundChannel_Unbind(): waveOutReset(): Unknown error."; break;
+        char* message;
+        switch (result)
+        {
+          case MMSYSERR_INVALHANDLE: message = "SoundChannel_Unbind(): waveOutReset(): Specified device handle is invalid."; break;
+          case MMSYSERR_NODRIVER: message = "SoundChannel_Unbind(): waveOutReset(): No device driver is present."; break;
+          case MMSYSERR_NOMEM: message = "SoundChannel_Unbind(): waveOutReset(): Unable to allocate or lock memory."; break;
+          case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Unbind(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
+          default: message = "SoundChannel_Unbind(): waveOutReset(): Unknown error."; break;
+        }
+        DIAGNOSTIC_SOUND_ERROR(message);
+        // TODO: how to robustly recover from this kind of error?
       }
-      DIAGNOSTIC_SOUND_ERROR(message);
-      // TODO: how to robustly recover from this kind of error?
-    }
 
-    result = waveOutUnprepareHeader(channel->handle, &channel->header, sizeof(channel->header));
-    if (result != MMSYSERR_NOERROR)
-    {
-      char* message;
-      switch (result)
+      result = waveOutUnprepareHeader(channel->handle, &channel->header, sizeof(channel->header));
+      if (result != MMSYSERR_NOERROR)
       {
-        case MMSYSERR_INVALHANDLE: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Specified device handle is invalid."; break;
-        case MMSYSERR_NODRIVER: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): No device driver is present."; break;
-        case MMSYSERR_NOMEM: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Unable to allocate or lock memory."; break;
-        case WAVERR_STILLPLAYING: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): The data block pointed to by the pwh parameter is still in the queue."; break;
-        default: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Unknown error."; break;
+        char* message;
+        switch (result)
+        {
+          case MMSYSERR_INVALHANDLE: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Specified device handle is invalid."; break;
+          case MMSYSERR_NODRIVER: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): No device driver is present."; break;
+          case MMSYSERR_NOMEM: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Unable to allocate or lock memory."; break;
+          case WAVERR_STILLPLAYING: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): The data block pointed to by the pwh parameter is still in the queue."; break;
+          default: message = "SoundChannel_Unbind(): waveOutUnprepareHeader(): Unknown error."; break;
+        }
+        DIAGNOSTIC_SOUND_ERROR(message);
+        // TODO: how to robustly recover from this kind of error?
       }
-      DIAGNOSTIC_SOUND_ERROR(message);
-      // TODO: how to robustly recover from this kind of error?
     }
 #endif
 
-    SoundBuffer_Release(channel->buffer);
+    SoundBuffer_Release_Handler(channel->buffer);
     channel->buffer = 0;
   }
 }
 
-static int SoundChannel_Bind(SoundChannelData* channel, SoundBufferData* buffer, int loop)
+static long SoundChannel_Bind_Handler(SoundChannelData* channel, SoundBufferData* buffer, long loop)
 {
-  // if 'buffer' is already bound, then no-op
+  // if 'buffer' is already bound to this channel, then no-op
   if (buffer && buffer == channel->buffer)
   {
     return 1;
   }
 
-  SoundChannel_Unbind(channel);
+  SoundChannel_Unbind_Handler(channel);
 
 #ifdef LURDS2_USE_SOUND_MMEAPI
-  // inspect *.wav file header
-  WaveFileHeader* fileHeader;
-  fileHeader = (WaveFileHeader*)buffer->data;
-
-  LPWAVEHDR header;
-  header = &channel->header;
-  memset(header, 0, sizeof(*header));
-  header->lpData = buffer->data + sizeof(WaveFileHeader);
-  header->dwBufferLength = fileHeader->data_bytes;
-  header->dwFlags = 0 | (loop ? (WHDR_BEGINLOOP | WHDR_ENDLOOP) : 0);
-  header->dwLoops = loop ? 0xffffffff : 0;
-
-  MMRESULT result;
-  result = waveOutPrepareHeader(channel->handle, header, sizeof(*header));
-  if (MMSYSERR_NOERROR != result)
+  // be graceful - it's possible that SoundChannel_Open_Handler couldn't open the handle
+  // be graceful - it's possible that SoundBuffer_LoadFromFileW_Handler couldn't load the file data
+  if (channel->handle && buffer->data)
   {
-    char * message;
-    switch (result)
+    // inspect *.wav file header
+    WaveFileHeader* fileHeader;
+    fileHeader = (WaveFileHeader*)buffer->data;
+
+    LPWAVEHDR header;
+    header = &channel->header;
+    memset(header, 0, sizeof(*header));
+    header->lpData = buffer->data + sizeof(WaveFileHeader);
+    header->dwBufferLength = fileHeader->data_bytes;
+    header->dwFlags = 0 | (loop ? (WHDR_BEGINLOOP | WHDR_ENDLOOP) : 0);
+    header->dwLoops = loop ? 0xffffffff : 0;
+
+    MMRESULT result;
+    result = waveOutPrepareHeader(channel->handle, header, sizeof(*header));
+    if (MMSYSERR_NOERROR != result)
     {
-      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Bind(): waveOutPrepareHeader(): Specified device handle is invalid."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Bind(): waveOutPrepareHeader(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Bind(): waveOutPrepareHeader(): Unable to allocate or lock memory."; break;
-      default: message = "SoundChannel_Bind(): waveOutPrepareHeader(): unknown error"; break;
+      char * message;
+      switch (result)
+      {
+        case MMSYSERR_INVALHANDLE: message = "SoundChannel_Bind(): waveOutPrepareHeader(): Specified device handle is invalid."; break;
+        case MMSYSERR_NODRIVER: message = "SoundChannel_Bind(): waveOutPrepareHeader(): No device driver is present."; break;
+        case MMSYSERR_NOMEM: message = "SoundChannel_Bind(): waveOutPrepareHeader(): Unable to allocate or lock memory."; break;
+        default: message = "SoundChannel_Bind(): waveOutPrepareHeader(): unknown error"; break;
+      }
+      DIAGNOSTIC_SOUND_ERROR(message);
+      return 0;
     }
-    DIAGNOSTIC_SOUND_ERROR(message);
-    return 0;
   }
 #endif
   
   channel->buffer = buffer;
-  buffer->refcount++;
+  InterlockedIncrement(&buffer->refcount);
   return 1;
 }
 
-void SoundChannel_Play(SoundChannel soundChannel, SoundBuffer soundBuffer, int loop)
+void SoundChannel_Play(SoundChannel soundChannel, SoundBuffer soundBuffer, long loop)
 {
   SoundChannelData* channel = (SoundChannelData*)soundChannel;
   SoundBufferData* buffer = (SoundBufferData*)soundBuffer;
@@ -202,57 +333,67 @@ void SoundChannel_Play(SoundChannel soundChannel, SoundBuffer soundBuffer, int l
     return;
   }
 
-#ifdef LURDS2_USE_SOUND_MMEAPI
-  if (!channel->handle)
+  InterlockedIncrement(&channel->refcount);
+  InterlockedIncrement(&buffer->refcount);
+  if (!PostThreadMessage(SoundThreadId, loop ? WM_SOUNDCHANNEL_PLAYLOOP : WM_SOUNDCHANNEL_PLAY, *(WPARAM*)&channel, *(LPARAM*)&buffer))
   {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
+    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundChannel_Stop(): PostThreadMessage(): "));
+    SoundChannel_Play_Handler(channel, buffer, loop);
   }
-#endif
+}
+
+void SoundChannel_Play_Handler(SoundChannelData* channel, SoundBufferData* buffer, long loop)
+{
+  EnterCriticalSection(&SoundThreadCriticalSection);
 
   if (!buffer->data)
   {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): null soundBuffer->data (likely a dangling pointer defect)");
-    return;
+    // be graceful - can happen when SoundBuffer_LoadFromFileW_Handler() fails
   }
-
-  if (!SoundChannel_Bind(channel, soundBuffer, loop))
+  else if (!SoundChannel_Bind_Handler(channel, buffer, loop))
   {
-    return;
+    // it speaks for itself
   }
-
+  // be graceful - it's possible that SoundChannel_Open_Handler couldn't open the handle
+  else if (channel->handle)
+  {
 #ifdef LURDS2_USE_SOUND_MMEAPI
-  // in case a sound is currently playing, stop it first
-  MMRESULT result;
-  result = waveOutReset(channel->handle);
-  if (result != MMSYSERR_NOERROR)
-  {
-    char* message;
-    switch (result)
+    // in case a sound is currently playing, stop it first
+    MMRESULT result;
+    result = waveOutReset(channel->handle);
+    if (result != MMSYSERR_NOERROR)
     {
-      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Play(): waveOutReset(): Specified device handle is invalid."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Play(): waveOutReset(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Play(): waveOutReset(): Unable to allocate or lock memory."; break;
-      case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Play(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
-      default: message = "SoundChannel_Play(): waveOutReset(): Unknown error."; break;
+      char* message;
+      switch (result)
+      {
+        case MMSYSERR_INVALHANDLE: message = "SoundChannel_Play(): waveOutReset(): Specified device handle is invalid."; break;
+        case MMSYSERR_NODRIVER: message = "SoundChannel_Play(): waveOutReset(): No device driver is present."; break;
+        case MMSYSERR_NOMEM: message = "SoundChannel_Play(): waveOutReset(): Unable to allocate or lock memory."; break;
+        case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Play(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
+        default: message = "SoundChannel_Play(): waveOutReset(): Unknown error."; break;
+      }
+      DIAGNOSTIC_SOUND_ERROR(message);
+      // TODO: how to robustly recover from this kind of error?
     }
-    DIAGNOSTIC_SOUND_ERROR(message);
-    // TODO: how to robustly recover from this kind of error?
-  }
 
-  result = waveOutWrite(channel->handle, &channel->header, sizeof(channel->header));
-  if (result != MMSYSERR_NOERROR)
-  {
-    switch (result)
+    result = waveOutWrite(channel->handle, &channel->header, sizeof(channel->header));
+    if (result != MMSYSERR_NOERROR)
     {
-      case MMSYSERR_INVALHANDLE: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): Specified device handle is invalid."); break;
-      case MMSYSERR_NODRIVER: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): No device driver is present."); break;
-      case MMSYSERR_NOMEM: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): Unable to allocate or lock memory."); break;
-      case WAVERR_UNPREPARED: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): The data block pointed to by the pwh parameter hasn't been prepared."); break;
-      default: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): unknown error");
+      switch (result)
+      {
+        case MMSYSERR_INVALHANDLE: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): Specified device handle is invalid."); break;
+        case MMSYSERR_NODRIVER: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): No device driver is present."); break;
+        case MMSYSERR_NOMEM: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): Unable to allocate or lock memory."); break;
+        case WAVERR_UNPREPARED: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): The data block pointed to by the pwh parameter hasn't been prepared."); break;
+        default: DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): waveOutWrite(): unknown error");
+      }
     }
   }
 #endif
+
+  SoundChannel_Release_Handler(channel);
+  SoundBuffer_Release_Handler(buffer);
+  LeaveCriticalSection(&SoundThreadCriticalSection);
 }
 
 void SoundChannel_Stop(SoundChannel soundChannel)
@@ -265,39 +406,47 @@ void SoundChannel_Stop(SoundChannel soundChannel)
     return;
   }
 
-#ifdef LURDS2_USE_SOUND_MMEAPI
-  if (!channel->handle)
+  InterlockedIncrement(&channel->refcount);
+  if (!PostThreadMessage(SoundThreadId, WM_SOUNDCHANNEL_STOP, *(WPARAM*)&channel, 0))
   {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Stop(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
+    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundChannel_Stop(): PostThreadMessage(): "));
+    SoundChannel_Stop_Handler(channel);
   }
-#endif
+}
 
-  if (!channel->buffer)
+void SoundChannel_Stop_Handler(SoundChannelData* channel)
+{
+  EnterCriticalSection(&SoundThreadCriticalSection);
+
+  // forgive someone calling 'stop' before calling 'play'
+  if (channel->buffer)
   {
-    // forgive someone calling 'stop' before calling 'play'
-    //DIAGNOSTIC_SOUND_ERROR("SoundChannel_Stop(): soundChannel not yet bound to SoundBuffer");
-    return;
+  #ifdef LURDS2_USE_SOUND_MMEAPI
+    // be graceful - it's possible that SoundChannel_Open_Handler couldn't open the handle
+    if (channel->handle)
+    {
+      MMRESULT result;
+      result = waveOutReset(channel->handle);
+      if (result != MMSYSERR_NOERROR)
+      {
+        char* message;
+        switch (result)
+        {
+          case MMSYSERR_INVALHANDLE: message = "SoundChannel_Stop(): waveOutReset(): Specified device handle is invalid."; break;
+          case MMSYSERR_NODRIVER: message = "SoundChannel_Stop(): waveOutReset(): No device driver is present."; break;
+          case MMSYSERR_NOMEM: message = "SoundChannel_Stop(): waveOutReset(): Unable to allocate or lock memory."; break;
+          case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Stop(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
+          default: message = "SoundChannel_Stop(): waveOutReset(): Unknown error."; break;
+        }
+        DIAGNOSTIC_SOUND_ERROR(message);
+        // TODO: how to robustly recover from this kind of error?
+      }
+    }
+  #endif
   }
   
-#ifdef LURDS2_USE_SOUND_MMEAPI
-  MMRESULT result;
-  result = waveOutReset(channel->handle);
-  if (result != MMSYSERR_NOERROR)
-  {
-    char* message;
-    switch (result)
-    {
-      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Stop(): waveOutReset(): Specified device handle is invalid."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Stop(): waveOutReset(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Stop(): waveOutReset(): Unable to allocate or lock memory."; break;
-      case MMSYSERR_NOTSUPPORTED: message = "SoundChannel_Stop(): waveOutReset(): Specified device is synchronous and does not support pausing."; break;
-      default: message = "SoundChannel_Stop(): waveOutReset(): Unknown error."; break;
-    }
-    DIAGNOSTIC_SOUND_ERROR(message);
-    // TODO: how to robustly recover from this kind of error?
-  }
-#endif
+  SoundChannel_Release_Handler(channel);
+  LeaveCriticalSection(&SoundThreadCriticalSection);
 }
 
 void SoundChannel_Release(SoundChannel soundChannel)
@@ -309,59 +458,112 @@ void SoundChannel_Release(SoundChannel soundChannel)
     DIAGNOSTIC_SOUND_ERROR("SoundChannel_Release(): null soundChannel arg provided");
     return;
   }
-
-#ifdef LURDS2_USE_SOUND_MMEAPI
-  if (!channel->handle)
-  {
-    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Release(): invalid soundChannel->handle (likely a dangling pointer defect)");
-    return;
-  }
-#endif
   
-  SoundChannel_Unbind(channel);
-
-#ifdef LURDS2_USE_SOUND_MMEAPI
-  MMRESULT result;
-  result = waveOutClose(channel->handle);
-  if (result != MMSYSERR_NOERROR)
+  if (!PostThreadMessage(SoundThreadId, WM_SOUNDCHANNEL_RELEASE, *(WPARAM*)&channel, 0))
   {
-    char* message;
-    switch (result)
-    {
-      case MMSYSERR_INVALHANDLE: message = "SoundChannel_Release(): waveOutClose(): Specified device handle is invalid."; break;
-      case MMSYSERR_NODRIVER: message = "SoundChannel_Release(): waveOutClose(): No device driver is present."; break;
-      case MMSYSERR_NOMEM: message = "SoundChannel_Release(): waveOutClose(): Unable to allocate or lock memory."; break;
-      case WAVERR_STILLPLAYING: message = "SoundChannel_Release(): waveOutClose(): There are still buffers in the queue."; break;
-      default: message = "SoundChannel_Release(): waveOutClose(): Unknown error."; break;
-    }
-    DIAGNOSTIC_SOUND_ERROR(message);
-    // TODO: how to robustly recover from this kind of error?
+    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundChannel_Release(): PostThreadMessage(): "));
+    SoundChannel_Release_Handler(channel);
   }
-  channel->handle = 0;
-#endif
-
-  free(channel);
 }
 
-SoundBuffer SoundBuffer_LoadFromFileW(wchar_t * filePath)
+void SoundChannel_Release_Handler(SoundChannelData* channel)
 {
-  HANDLE h;
+  EnterCriticalSection(&SoundThreadCriticalSection);
+
+  long result = InterlockedDecrement(&channel->refcount);
+  if (result < 0)
+  {
+    InterlockedIncrement(&channel->refcount);
+    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Release_Handler(): invalid refcount (bad pointer management)");
+  }
+  else if (result > 0)
+  {
+    // something else is still holding this alive
+  }
+  else
+  {
+    SoundChannel_Unbind_Handler(channel);
+
+#ifdef LURDS2_USE_SOUND_MMEAPI
+    // be graceful - it's possible that SoundChannel_Open_Handler couldn't open the handle
+    if (channel->handle)
+    {
+      MMRESULT result;
+      result = waveOutClose(channel->handle);
+      if (result != MMSYSERR_NOERROR)
+      {
+        char* message;
+        switch (result)
+        {
+          case MMSYSERR_INVALHANDLE: message = "SoundChannel_Release(): waveOutClose(): Specified device handle is invalid."; break;
+          case MMSYSERR_NODRIVER: message = "SoundChannel_Release(): waveOutClose(): No device driver is present."; break;
+          case MMSYSERR_NOMEM: message = "SoundChannel_Release(): waveOutClose(): Unable to allocate or lock memory."; break;
+          case WAVERR_STILLPLAYING: message = "SoundChannel_Release(): waveOutClose(): There are still buffers in the queue."; break;
+          default: message = "SoundChannel_Release(): waveOutClose(): Unknown error."; break;
+        }
+        DIAGNOSTIC_SOUND_ERROR(message);
+        // TODO: how to robustly recover from this kind of error?
+      }
+      channel->handle = 0;
+    }
+#endif
+
+    free(channel);
+  }
+
+  LeaveCriticalSection(&SoundThreadCriticalSection);
+}
+
+SoundBuffer SoundBuffer_LoadFromFileW(const wchar_t * filePath)
+{
+  if (filePath == 0)
+  {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): null filePath arg");
+    return 0;
+  }
+  
+  // copy filePath
+  long len;
+  len = wcslen(filePath);
+  wchar_t * filePathCopy;
+  filePathCopy = malloc((len + 1) * sizeof(wchar_t));
+  if (filePathCopy == 0)
+  {
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): failed to allocate memory for filePathCopy");
+    return 0;
+  }
+  memcpy(filePathCopy, filePath, (len + 1) * sizeof(wchar_t));
+  
   SoundBufferData * buffer;
-  char * data;
-
-  data = 0;
-  buffer = 0;
-  h = INVALID_HANDLE_VALUE;
-
   buffer = malloc(sizeof(SoundBufferData));
   if (buffer == 0)
   {
     DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): failed to allocate memory SoundBufferData struct");
-    goto error;
+    free(filePathCopy);
+    return 0;
   }
-
   memset(buffer, 0, sizeof(SoundBufferData));
-  h = CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  
+  InterlockedIncrement(&buffer->refcount); // 1 for caller holding the reference
+  InterlockedIncrement(&buffer->refcount); // 1 for SoundThread using it
+
+  if (!PostThreadMessage(SoundThreadId, WM_SOUNDBUFFER_LOADFROMFILE, *(WPARAM*)&buffer, *(LPARAM*)&filePathCopy))
+  {
+    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundBuffer_LoadFromFileW(): PostThreadMessage(): "));
+    SoundBuffer_LoadFromFileW_Handler(buffer, filePathCopy);
+  }
+  return buffer;
+}
+
+void SoundBuffer_LoadFromFileW_Handler(SoundBufferData * buffer, wchar_t * filePathCopy)
+{
+  HANDLE h;
+  char * data;
+
+  data = 0;
+  h = INVALID_HANDLE_VALUE;
+  
+  h = CreateFileW(filePathCopy, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
   if (h == INVALID_HANDLE_VALUE)
   {
     DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundBuffer_LoadFromFileW(): CreateFileW(): "));
@@ -377,7 +579,8 @@ SoundBuffer SoundBuffer_LoadFromFileW(wchar_t * filePath)
     goto error;
   }
 
-  if (size > 2000000 || sizeHigh > 0)
+  // max 10 megs sound file supported
+  if (size > 10000000 || sizeHigh > 0)
   {
     DIAGNOSTIC_SOUND_ERROR("SoundBuffer_LoadFromFileW(): sound file too big");
     goto error;
@@ -496,16 +699,20 @@ SoundBuffer SoundBuffer_LoadFromFileW(wchar_t * filePath)
 
   // ding fries are done
   CloseHandle(h);
+  free(filePathCopy);
+
+  EnterCriticalSection(&SoundThreadCriticalSection);
   buffer->data = data;
   buffer->length = size;
-  buffer->refcount = 1;
-  return buffer;
+  SoundBuffer_Release_Handler(buffer);
+  LeaveCriticalSection(&SoundThreadCriticalSection);
+  return;
   
 error:
   if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
-  if (buffer != 0) free(buffer);
   if (data != 0) free(data);
-  return 0;
+  if (filePathCopy != 0) free(filePathCopy);
+  SoundBuffer_Release_Handler(buffer);
 }
 
 void SoundBuffer_Release(SoundBuffer soundBuffer)
@@ -519,14 +726,28 @@ void SoundBuffer_Release(SoundBuffer soundBuffer)
     return;
   }
   
-  if (buffer->refcount < 1)
+  if (!PostThreadMessage(SoundThreadId, WM_SOUNDBUFFER_RELEASE, *(WPARAM*)&buffer, 0))
   {
-    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_Release(): soundBuffer arg has bad refcount");
-    return;
+    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundBuffer_Release(): PostThreadMessage(): "));
+    SoundBuffer_Release_Handler(buffer);
   }
+}
 
-  buffer->refcount--;
-  if (buffer->refcount == 0)
+void SoundBuffer_Release_Handler(SoundBufferData* buffer)
+{
+  EnterCriticalSection(&SoundThreadCriticalSection);
+
+  long result = InterlockedDecrement(&buffer->refcount);
+  if (result < 0)
+  {
+    InterlockedIncrement(&buffer->refcount);
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_Release_Handler(): invalid refcount (bad pointer management)");
+  }
+  else if (result > 0)
+  {
+    // something else is still holding this alive
+  }
+  else
   {
     if (buffer->data)
     {
@@ -535,4 +756,6 @@ void SoundBuffer_Release(SoundBuffer soundBuffer)
     }
     free(buffer);
   }
+
+  LeaveCriticalSection(&SoundThreadCriticalSection);
 }
