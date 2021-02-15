@@ -1,3 +1,9 @@
+/*
+This is free and unencumbered software released into the public domain under The Unlicense.
+You have complete freedom to do anything you want with the software, for any purpose.
+Please refer to <http://unlicense.org/>
+*/
+
 #include "sound.h"
 
 #include "errors.h"
@@ -102,9 +108,15 @@ static DWORD WINAPI SoundThreadProc(LPVOID lpParameter)
         SoundChannel_Play_Handler(*(SoundChannelData**)&msg.wParam, *(SoundBufferData**)&msg.lParam, 1);
         break;
       case WM_SOUNDCHANNEL_STOP: SoundChannel_Stop_Handler(*(SoundChannelData**)&msg.wParam); break;
-      case WM_SOUNDCHANNEL_RELEASE: SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam); break;
+      case WM_SOUNDCHANNEL_RELEASE: 
+        SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam);
+        SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam);
+        break;
       case WM_SOUNDBUFFER_LOADFROMFILE: SoundBuffer_LoadFromFileW_Handler(*(SoundBufferData**)&msg.wParam, *(wchar_t**)&msg.lParam); break;
-      case WM_SOUNDBUFFER_RELEASE: SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.wParam); break;
+      case WM_SOUNDBUFFER_RELEASE: 
+        SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.wParam);
+        SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.wParam);
+        break;
     }
   }
 }
@@ -333,12 +345,28 @@ void SoundChannel_Play(SoundChannel soundChannel, SoundBuffer soundBuffer, long 
     return;
   }
 
-  InterlockedIncrement(&channel->refcount);
-  InterlockedIncrement(&buffer->refcount);
+  if (1 >= InterlockedIncrement(&channel->refcount))
+  {
+    InterlockedDecrement(&channel->refcount);
+    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): soundChannel arg has bad refcount - won't use");
+    return;
+  }
+  
+  if (1 >= InterlockedIncrement(&buffer->refcount))
+  {
+    InterlockedDecrement(&buffer->refcount);
+    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Play(): soundBuffer arg has bad refcount - won't use");
+    SoundChannel_Release_Handler(channel);
+    return;
+  }
+
   if (!PostThreadMessage(SoundThreadId, loop ? WM_SOUNDCHANNEL_PLAYLOOP : WM_SOUNDCHANNEL_PLAY, *(WPARAM*)&channel, *(LPARAM*)&buffer))
   {
     DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundChannel_Stop(): PostThreadMessage(): "));
-    SoundChannel_Play_Handler(channel, buffer, loop);
+    
+    // better to just not play than to be out of order vs other operations
+    SoundChannel_Release_Handler(channel);
+    SoundBuffer_Release_Handler(buffer);
   }
 }
 
@@ -406,11 +434,19 @@ void SoundChannel_Stop(SoundChannel soundChannel)
     return;
   }
 
-  InterlockedIncrement(&channel->refcount);
+  if (1 >= InterlockedIncrement(&channel->refcount))
+  {
+    InterlockedDecrement(&channel->refcount);
+    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Stop(): soundChannel arg has bad refcount - won't use");
+    return;
+  }
+  
   if (!PostThreadMessage(SoundThreadId, WM_SOUNDCHANNEL_STOP, *(WPARAM*)&channel, 0))
   {
     DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundChannel_Stop(): PostThreadMessage(): "));
-    SoundChannel_Stop_Handler(channel);
+    
+    // better to just not stop the sound than to perform this operation out of order vs. others
+    SoundChannel_Release_Handler(channel);
   }
 }
 
@@ -459,10 +495,18 @@ void SoundChannel_Release(SoundChannel soundChannel)
     return;
   }
   
+  if (1 >= InterlockedIncrement(&channel->refcount))
+  {
+    InterlockedDecrement(&channel->refcount);
+    DIAGNOSTIC_SOUND_ERROR("SoundChannel_Release(): soundChannel arg has bad refcount - won't use");
+    return;
+  }
+  
   if (!PostThreadMessage(SoundThreadId, WM_SOUNDCHANNEL_RELEASE, *(WPARAM*)&channel, 0))
   {
     DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundChannel_Release(): PostThreadMessage(): "));
-    SoundChannel_Release_Handler(channel);
+    SoundChannel_Release_Handler(channel); // once for the increment done for PostThreadMessage
+    SoundChannel_Release_Handler(channel); // once to do what the user asked
   }
 }
 
@@ -726,10 +770,18 @@ void SoundBuffer_Release(SoundBuffer soundBuffer)
     return;
   }
   
+  if (1 >= InterlockedIncrement(&buffer->refcount))
+  {
+    InterlockedDecrement(&buffer->refcount);
+    DIAGNOSTIC_SOUND_ERROR("SoundBuffer_Release(): soundBuffer arg has bad refcount - won't use");
+    return;
+  }
+  
   if (!PostThreadMessage(SoundThreadId, WM_SOUNDBUFFER_RELEASE, *(WPARAM*)&buffer, 0))
   {
     DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessageWithPrefix("SoundBuffer_Release(): PostThreadMessage(): "));
-    SoundBuffer_Release_Handler(buffer);
+    SoundBuffer_Release_Handler(buffer); // once for the increment done for PostThreadMessage
+    SoundBuffer_Release_Handler(buffer); // once to do what the user asked
   }
 }
 
