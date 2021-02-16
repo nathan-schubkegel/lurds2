@@ -10,6 +10,7 @@ Please refer to <http://unlicense.org/>
 #include "sound.c"
 #include "errors.c"
 #include "performanceCounter.c"
+#include "resourceFile.c"
 
 char mainWindowClassName[] = "LURDS2";
 char mainWindowTitle[]   = "Lurds of the Rolm 2";
@@ -77,6 +78,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1341, "KillBuffer", 100, 300, 10);
   CreateButton(mainWindowHandle, 1342, "Kill", 50, 410, 10);
   CreateButton(mainWindowHandle, 1343, "Peasants", 90, 10, 50);
+  CreateButton(mainWindowHandle, 1344, "ResFile", 80, 110, 50);
   
   mainWindowFullScreen = 0;
 
@@ -177,6 +179,32 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             
           case 1343:
             PlayPeasants();
+            break;
+            
+          case 1344:
+          {
+            char* data;
+            int fileSize;
+            data = ResourceFile_Load(L"unlicense.txt", &fileSize);
+            if (data != 0)
+            {
+              if (fileSize != 219)
+              {
+                MessageBox(0, "file size unexpected", 0, 0);
+              }
+              else if (strncmp(data, "This is free and unencumbered software released into the public domain under The Unlicense.", 91) != 0)
+              {
+                MessageBox(0, "compare unexpected", 0, 0);
+                MessageBox(0, data, 0, 0);
+              }
+              else
+              {
+                MessageBox(0, "file good", 0, 0);
+              }
+            }
+            free(data);
+            break;
+          }
 
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);

@@ -7,14 +7,7 @@ Please refer to <http://unlicense.org/>
 #ifndef LURDS2_ERRORS
 #define LURDS2_ERRORS
 
-#define COMPILE_TIME_ASSERT(expr) typedef char COMP_TIME_ASSERT[(expr) ? 1 : 0];
-
-#define BUILD_ASSERT(cond) \
-	(void) sizeof(char [1 - 2*!(cond)]);
-
-#define BUILD_ASSERT_SIZE(expr, size) \
-  (void) sizeof(char[1 - 50 * ((size) - (expr))]); \
-  (void) sizeof(char[1 - 50 * ((expr) - (size))]);
+#define BUILD_ASSERT(expr) extern char BuildAssertThing[(expr) ? 1 : -1];
 
 #define DIAGNOSTIC_ERROR(expr) ShowDiagnosticError(__FILE__, __FUNCTION__, __LINE__, (expr));
 #define DIAGNOSTIC_ERROR2(e1, e2) ShowDiagnosticError2(__FILE__, __FUNCTION__, __LINE__, (e1), (e2));
