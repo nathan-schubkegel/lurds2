@@ -46,7 +46,7 @@ if (-not (Test-Path -Path "obj\lua.o")) {
 }
 
 Write-Host "Compiling lurds2.exe"
-& tcc\tcc.exe -g -lwinmm -o lurds2.exe src\main.c obj\lua.o "-Ilua-5.4.2\src"
+& tcc\tcc.exe -g -lwinmm -o lurds2.exe src\lurds2_main.c obj\lua.o "-Ilua-5.4.2\src"
 if (-not $?) { exit 1 }
 
 if ($run) {

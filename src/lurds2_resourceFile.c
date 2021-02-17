@@ -4,11 +4,11 @@ You have complete freedom to do anything you want with the software, for any pur
 Please refer to <http://unlicense.org/>
 */
 
-#include "resourceFile.h"
+#include "lurds2_resourceFile.h"
 
 #include <Windows.h>
 #include <stdio.h>
-#include "errors.h"
+#include "lurds2_errors.h"
 #include <wchar.h>
 
 #define DIAGNOSTIC_RESOURCE_ERROR(message) DIAGNOSTIC_ERROR(message);

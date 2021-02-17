@@ -4,12 +4,12 @@ You have complete freedom to do anything you want with the software, for any pur
 Please refer to <http://unlicense.org/>
 */
 
-#include "looa.h"
+#include "lurds2_looa.h"
 
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
-#include "errors.h"
+#include "lurds2_errors.h"
 
 #define DIAGNOSTIC_LUA_ERROR(message) DIAGNOSTIC_ERROR(message);
 #define DIAGNOSTIC_LUA_ERROR2(message, m2) DIAGNOSTIC_ERROR2((message), (m2));

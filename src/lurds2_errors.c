@@ -4,7 +4,7 @@ You have complete freedom to do anything you want with the software, for any pur
 Please refer to <http://unlicense.org/>
 */
 
-#include "errors.h"
+#include "lurds2_errors.h"
 
 #include <Windows.h>
 #include <wchar.h>

@@ -4,9 +4,9 @@ You have complete freedom to do anything you want with the software, for any pur
 Please refer to <http://unlicense.org/>
 */
 
-#include "sound.h"
+#include "lurds2_sound.h"
 
-#include "errors.h"
+#include "lurds2_errors.h"
 
 #define LURDS2_USE_SOUND_MMEAPI
 

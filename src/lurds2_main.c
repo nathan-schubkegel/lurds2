@@ -7,11 +7,11 @@ Please refer to <http://unlicense.org/>
 #include <windows.h>
 #include <stdio.h>
 
-#include "sound.c"
-#include "errors.c"
-#include "performanceCounter.c"
-#include "resourceFile.c"
-#include "looa.c"
+#include "lurds2_sound.c"
+#include "lurds2_errors.c"
+#include "lurds2_performanceCounter.c"
+#include "lurds2_resourceFile.c"
+#include "lurds2_looa.c"
 
 char mainWindowClassName[] = "LURDS2";
 char mainWindowTitle[]   = "Lurds of the Rolm 2";

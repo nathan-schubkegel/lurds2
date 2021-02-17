@@ -4,7 +4,7 @@ You have complete freedom to do anything you want with the software, for any pur
 Please refer to <http://unlicense.org/>
 */
 
-#include "performanceCounter.h"
+#include "lurds2_performanceCounter.h"
 
 #include <Windows.h>
 
