@@ -94,7 +94,7 @@ int ResourceFile_GetPath(wchar_t* buffer, int bufferSize, const wchar_t * fileNa
   return fileNameLength + gExecutingDirLength;
 }
 
-char* ResourceFile_Load(const wchar_t* fileName, int* fileSize)
+void* ResourceFile_Load(const wchar_t* fileName, int* fileSize)
 {
   wchar_t filePath[ExecutingDirSize];
 
@@ -110,7 +110,7 @@ char* ResourceFile_Load(const wchar_t* fileName, int* fileSize)
   }
 
   HANDLE h;
-  char* data;
+  void* data;
 
   data = 0;
   h = INVALID_HANDLE_VALUE;

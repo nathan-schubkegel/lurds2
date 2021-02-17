@@ -11,6 +11,6 @@ Please refer to <http://unlicense.org/>
 // returns number of characters now used in 'buffer' on success
 int ResourceFile_GetPath(wchar_t* buffer, int bufferSize, const wchar_t* fileName);
 
-char* ResourceFile_Load(const wchar_t* fileName, int* fileSize);
+void* ResourceFile_Load(const wchar_t* fileName, int* fileSize);
 
 #endif

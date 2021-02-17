@@ -7,6 +7,7 @@ Please refer to <http://unlicense.org/>
 #include "errors.h"
 
 #include <Windows.h>
+#include <wchar.h>
 
 #define ERROR_MESSAGE_BUFFER_SIZE 2048
 
@@ -33,6 +34,22 @@ char* GetLastErrorMessage()
     strcpy(buffer, "unknown error");
   }
   return buffer;
+}
+
+char* CopyWstrToCstr(const wchar_t* input)
+{
+  if (!input) return 0; 
+  int len;
+  len = wcslen(input);
+  char* result;
+  result = malloc(len + 1);
+  if (!result) return 0;
+  int i;
+  for (i = 0; i <= len; i++)
+  {
+    result[i] = (char)input[i];
+  }
+  return result;
 }
 
 static DWORD WINAPI ShowFatalErrorThenKillProcessProc(LPVOID lpParameter)

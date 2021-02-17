@@ -11,6 +11,7 @@ Please refer to <http://unlicense.org/>
 #include "errors.c"
 #include "performanceCounter.c"
 #include "resourceFile.c"
+#include "looa.c"
 
 char mainWindowClassName[] = "LURDS2";
 char mainWindowTitle[]   = "Lurds of the Rolm 2";
@@ -79,6 +80,8 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1342, "Kill", 50, 410, 10);
   CreateButton(mainWindowHandle, 1343, "Peasants", 90, 10, 50);
   CreateButton(mainWindowHandle, 1344, "ResFile", 80, 110, 50);
+  CreateButton(mainWindowHandle, 1345, "Looa", 50, 200, 50);
+  CreateButton(mainWindowHandle, 1346, "BigError", 90, 260, 50);
   
   mainWindowFullScreen = 0;
 
@@ -161,25 +164,25 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
 
           case 1339:
             SoundChannel_Play(soundChannel, soundBuffer, 0);
-            break;
+            return 0;
 
           case 1340:
             SoundChannel_Stop(soundChannel);
-            break;
+            return 0;
             
           case 1341:
             SoundBuffer_Release(soundBuffer);
             soundBuffer = 0;
-            break;
+            return 0;
             
           case 1342:
             SoundChannel_Release(soundChannel);
             soundChannel = 0;
-            break;
+            return 0;
             
           case 1343:
             PlayPeasants();
-            break;
+            return 0;
             
           case 1344:
           {
@@ -203,8 +206,44 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
               }
             }
             free(data);
-            break;
+            return 0;
           }
+          
+          case 1345:
+          {
+            Looa l;
+            l = Looa_Create();
+            if (l)
+            {
+              MessageBox(0, "looa good", 0, 0);
+            }
+            return 0;
+          }
+          
+          case 1346:
+            DIAGNOSTIC_ERROR4("here's a big message: ",
+              "abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz "
+              "abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz "
+              "abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz "
+              "abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz ",
+              "1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 "
+              "1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 "
+              "1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 "
+              "1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 "
+              "gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey "
+              "gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey "
+              "gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey "
+              "gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey gabba gabba hey "
+              "hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho "
+              "hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho "
+              "hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho "
+              "hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho hiney hiney ho "
+              "the thug life chose me the thug life chose me the thug life chose me the thug life chose me the thug life chose me "
+              "the thug life chose me the thug life chose me the thug life chose me the thug life chose me the thug life chose me "
+              "the thug life chose me the thug life chose me the thug life chose me the thug life chose me the thug life chose me "
+              "the thug life chose me the thug life chose me the thug life chose me the thug life chose me the thug life chose me ",
+              "and still more content at the end");
+              break;
 
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);
