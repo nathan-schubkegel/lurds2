@@ -5,6 +5,7 @@ Please refer to <http://unlicense.org/>
 */
 
 #include <windows.h>
+#include <GL/GL.h>
 #include <stdio.h>
 
 #include "lurds2_sound.c"
@@ -13,14 +14,37 @@ Please refer to <http://unlicense.org/>
 #include "lurds2_resourceFile.c"
 #include "lurds2_looa.c"
 
-char mainWindowClassName[] = "LURDS2";
-char mainWindowTitle[]   = "Lurds of the Rolm 2";
-char mainWindowContent[] = "Welcome to Lurds of the Rolm 2";
-RECT lastMainWindowRectBeforeFullScreen;
-int mainWindowFullScreen = 0;
-HWND mainWindowHandle = 0;
-SoundChannel soundChannel = 0;
-SoundBuffer soundBuffer = 0;
+static char mainWindowClassName[] = "LURDS2";
+static char mainWindowTitle[]   = "Lurds of the Rolm 2";
+static char mainWindowContent[] = "Welcome to Lurds of the Rolm 2";
+static RECT lastMainWindowRectBeforeFullScreen;
+static int mainWindowFullScreen = 0;
+static HWND mainWindowHandle = 0;
+static SoundChannel soundChannel = 0;
+static SoundBuffer soundBuffer = 0;
+static HDC mainWindowHdc;
+static HGLRC mainWindowGlrc;
+
+// shamelessly stolen from https://www.khronos.org/opengl/wiki/Creating_an_OpenGL_Context_(WGL)
+static PIXELFORMATDESCRIPTOR pfd =
+{
+  sizeof(PIXELFORMATDESCRIPTOR),
+  1,
+  PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    // Flags
+  PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
+  32,                   // Colordepth of the framebuffer.
+  0, 0, 0, 0, 0, 0,
+  0,
+  0,
+  0,
+  0, 0, 0, 0,
+  24,                   // Number of bits for the depthbuffer
+  8,                    // Number of bits for the stencilbuffer
+  0,                    // Number of Aux buffers in the framebuffer.
+  PFD_MAIN_PLANE,
+  0,
+  0, 0, 0
+};
 
 void CenterWindow(HWND hWnd);
 void SetFullScreen(int yes, HWND hwnd);
@@ -28,6 +52,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
 void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top);
 void PlayPeasants();
 void DrawPeasantLabels(HDC hdc);
+void DrawSomeGl(HWND hwnd);
 
 int APIENTRY WinMain(
   HINSTANCE hInstance,
@@ -42,7 +67,9 @@ int APIENTRY WinMain(
   wc.hInstance     = hInstance;
   wc.lpszClassName = mainWindowClassName;
   wc.lpfnWndProc   = (WNDPROC)MainWndProc;
-  wc.style         = CS_DBLCLKS|CS_VREDRAW|CS_HREDRAW;
+  wc.style         = CS_DBLCLKS
+                      | CS_VREDRAW | CS_HREDRAW // makes window redraw if client area is resized
+                      | CS_OWNDC; // makes DeviceContext of the window never released (for opengl)
   wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
   wc.hIcon         = LoadIcon(NULL, IDI_APPLICATION);
   wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
@@ -71,6 +98,43 @@ int APIENTRY WinMain(
     MessageBox(0, "Unable to create main window", mainWindowTitle, 0);
     return 1;
   }
+  
+  mainWindowHdc = GetDC(mainWindowHandle);
+  if (mainWindowHdc == 0)
+  {
+    MessageBox(0, "Unable to get DC to main window", mainWindowTitle, 0);
+    return 1;
+  }
+
+  int  pixelFormatIndex;
+  pixelFormatIndex = ChoosePixelFormat(mainWindowHdc, &pfd);
+  if (pixelFormatIndex == 0)
+  {
+    MessageBox(0, "Unable to find pixel format for main window", mainWindowTitle, 0);
+    return 1;
+  }
+  
+  if (!SetPixelFormat(mainWindowHdc, pixelFormatIndex, &pfd))
+  {
+    MessageBox(0, "Unable to set pixel format of main window", mainWindowTitle, 0);
+    return 1;
+  }
+
+  mainWindowGlrc = wglCreateContext(mainWindowHdc);
+  if (mainWindowGlrc == 0)
+  {
+    MessageBox(0, "Unable to create gl context for main window", mainWindowTitle, 0);
+    return 1;
+  }
+
+  if (!wglMakeCurrent(mainWindowHdc, mainWindowGlrc))
+  {
+    MessageBox(0, "Unable to make gl context current for main window", mainWindowTitle, 0);
+    return 1;
+  }
+  
+  //MessageBoxA(0, (char*)glGetString(GL_VERSION), "OPENGL VERSION", 0);
+  //wglDeleteContext(mainWindowGlrc);
   
   CreateButton(mainWindowHandle, 1337, "Open", 50, 10, 10);
   CreateButton(mainWindowHandle, 1338, "LoadBuffer", 100, 70, 10);
@@ -270,6 +334,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
       
     case WM_PAINT:
     {
+      DrawSomeGl(hwnd);
+
       PAINTSTRUCT ps;
       HDC         hdc;
       RECT        rc;
@@ -522,4 +588,47 @@ void PlayPeasants()
   SetTimer(mainWindowHandle, 124, 455, (TIMERPROC)Arrow2TimerProc);
   SetTimer(mainWindowHandle, 125, 700, (TIMERPROC)HitTimerProc);
   SetTimer(mainWindowHandle, 126, 300, (TIMERPROC)UpdatePeasantLabelsProc);
+}
+
+void DrawSomeGl(HWND hwnd)
+{
+  //Initialize Projection Matrix
+  glMatrixMode( GL_PROJECTION );
+  glLoadIdentity();
+
+  //Initialize Modelview Matrix
+  glMatrixMode( GL_MODELVIEW );
+  glLoadIdentity();
+  
+  //Initialize clear color
+  glClearColor( 0.2f, 0.3f, 0.4f, 1.0f );
+
+    // apply the clear color 
+  glClear( GL_COLOR_BUFFER_BIT );
+  
+      //Render quad
+  glBegin( GL_QUADS );
+      glColor3f(0.5f, 0.5f, 0.5f);
+      glVertex2f( -0.5f, -0.5f );
+      glVertex2f(  0.5f, -0.5f );
+      glVertex2f(  0.5f,  0.5f );
+      glVertex2f( -0.5f,  0.5f );
+  glEnd();
+  
+  //Check for error
+  GLenum error = glGetError();
+  if( error != GL_NO_ERROR )
+  {
+      FATAL_ERROR( "Error drawing some OpenGL!");
+      return;
+  }
+
+  /* SwapBuffers causes an implicit OpenGL command queue flush,
+   * but only on double buffered windows. On single buffered
+   * windows SwapBuffers has no effect at all. Also calling
+   * glFlush right before SwapBuffers has no ill effect other
+   * than that the OpenGL queue gets flushed a few CPU cycles
+   * earlier. */
+  glFlush();
+  SwapBuffers(mainWindowHdc);
 }
