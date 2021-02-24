@@ -592,9 +592,15 @@ void PlayPeasants()
 
 void DrawSomeGl(HWND hwnd)
 {
-  //Initialize Projection Matrix
+  //Initialize Projection Matrix so drawing is done in pixel coordinates
+  // with top left at (0, 0) and bottom right at (width, height) just like desktop graphics
   glMatrixMode( GL_PROJECTION );
-  glLoadIdentity();
+  RECT bounds;
+  GetClientRect(hwnd, &bounds);
+  int width, height;
+  width = abs(bounds.right - bounds.left);
+  height = abs(bounds.bottom - bounds.top);
+  glOrtho(0, width, height, 0, -100, 100);
 
   //Initialize Modelview Matrix
   glMatrixMode( GL_MODELVIEW );
@@ -609,10 +615,10 @@ void DrawSomeGl(HWND hwnd)
       //Render quad
   glBegin( GL_QUADS );
       glColor3f(0.5f, 0.5f, 0.5f);
-      glVertex2f( -0.5f, -0.5f );
-      glVertex2f(  0.5f, -0.5f );
-      glVertex2f(  0.5f,  0.5f );
-      glVertex2f( -0.5f,  0.5f );
+      glVertex2f(20, 20);
+      glVertex2f(width - 20, 20);
+      glVertex2f(width - 20, height - 20);
+      glVertex2f(20, height - 20);
   glEnd();
   
   //Check for error
