@@ -13,6 +13,7 @@ Please refer to <http://unlicense.org/>
 #include "lurds2_performanceCounter.c"
 #include "lurds2_resourceFile.c"
 #include "lurds2_looa.c"
+#include "lurds2_bmp.c"
 
 static char mainWindowClassName[] = "LURDS2";
 static char mainWindowTitle[]   = "Lurds of the Rolm 2";
@@ -146,6 +147,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1344, "ResFile", 80, 110, 50);
   CreateButton(mainWindowHandle, 1345, "Looa", 50, 200, 50);
   CreateButton(mainWindowHandle, 1346, "BigError", 90, 260, 50);
+  CreateButton(mainWindowHandle, 1347, "Bmp", 40, 360, 50);
   
   mainWindowFullScreen = 0;
 
@@ -308,6 +310,17 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
               "the thug life chose me the thug life chose me the thug life chose me the thug life chose me the thug life chose me ",
               "and still more content at the end");
               break;
+
+          case 1347:
+          {
+            Bmp bitmap;
+            bitmap = Bmp_LoadFromResourceFile(L"res\\old_timey_font2.bmp");
+            if (bitmap == 0) break;
+            Bmp_GetPixelData(bitmap);
+            Bmp_Release(bitmap);
+            MessageBox(0, "ok, bitmapped", 0, 0);
+          }
+          break;
 
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);
