@@ -21,10 +21,12 @@ static char mainWindowContent[] = "Welcome to Lurds of the Rolm 2";
 static RECT lastMainWindowRectBeforeFullScreen;
 static int mainWindowFullScreen = 0;
 static HWND mainWindowHandle = 0;
-static SoundChannel soundChannel = 0;
-static SoundBuffer soundBuffer = 0;
+static SoundChannel mainWindowSoundChannel = 0;
+static SoundBuffer mainWindowSoundBuffer = 0;
 static HDC mainWindowHdc;
 static HGLRC mainWindowGlrc;
+static int mainWindowPaintCount;
+static RECT mainWindowLastPaintSize;
 
 // shamelessly stolen from https://www.khronos.org/opengl/wiki/Creating_an_OpenGL_Context_(WGL)
 static PIXELFORMATDESCRIPTOR pfd =
@@ -71,13 +73,14 @@ int APIENTRY WinMain(
   wc.style         = CS_DBLCLKS
                       | CS_VREDRAW | CS_HREDRAW // makes window redraw if client area is resized
                       | CS_OWNDC; // makes DeviceContext of the window never released (for opengl)
-  wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+  wc.hbrBackground = 0; // disables WM_ERASEBKGND, or at least the effects of it
+                        // could use this to have a background again: (HBRUSH)GetStockObject(BLACK_BRUSH);
   wc.hIcon         = LoadIcon(NULL, IDI_APPLICATION);
   wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
 
   if (FALSE == RegisterClass(&wc))
   {
-    MessageBox(0, "Unable to register main window class", mainWindowTitle, 0);
+    DIAGNOSTIC_ERROR("Unable to register main window class");
     return 1;
   }
 
@@ -96,14 +99,14 @@ int APIENTRY WinMain(
     
   if (NULL == mainWindowHandle)
   {
-    MessageBox(0, "Unable to create main window", mainWindowTitle, 0);
+    DIAGNOSTIC_ERROR("Unable to create main window");
     return 1;
   }
   
   mainWindowHdc = GetDC(mainWindowHandle);
   if (mainWindowHdc == 0)
   {
-    MessageBox(0, "Unable to get DC to main window", mainWindowTitle, 0);
+    DIAGNOSTIC_ERROR("Unable to get DC to main window");
     return 1;
   }
 
@@ -111,26 +114,26 @@ int APIENTRY WinMain(
   pixelFormatIndex = ChoosePixelFormat(mainWindowHdc, &pfd);
   if (pixelFormatIndex == 0)
   {
-    MessageBox(0, "Unable to find pixel format for main window", mainWindowTitle, 0);
+    DIAGNOSTIC_ERROR("Unable to find pixel format for main window");
     return 1;
   }
   
   if (!SetPixelFormat(mainWindowHdc, pixelFormatIndex, &pfd))
   {
-    MessageBox(0, "Unable to set pixel format of main window", mainWindowTitle, 0);
+    DIAGNOSTIC_ERROR("Unable to set pixel format of main window");
     return 1;
   }
 
   mainWindowGlrc = wglCreateContext(mainWindowHdc);
   if (mainWindowGlrc == 0)
   {
-    MessageBox(0, "Unable to create gl context for main window", mainWindowTitle, 0);
+    DIAGNOSTIC_ERROR("Unable to create gl context for main window");
     return 1;
   }
 
   if (!wglMakeCurrent(mainWindowHdc, mainWindowGlrc))
   {
-    MessageBox(0, "Unable to make gl context current for main window", mainWindowTitle, 0);
+    DIAGNOSTIC_ERROR("Unable to make gl context current for main window");
     return 1;
   }
   
@@ -148,6 +151,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1345, "Looa", 50, 200, 50);
   CreateButton(mainWindowHandle, 1346, "BigError", 90, 260, 50);
   CreateButton(mainWindowHandle, 1347, "Bmp", 40, 360, 50);
+  CreateButton(mainWindowHandle, 1348, "Invalidate", 70, 410, 50);
   
   mainWindowFullScreen = 0;
 
@@ -195,13 +199,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
         switch (LOWORD(wParam))
         {
           case 1337:
-            if (soundChannel)
+            if (mainWindowSoundChannel)
             {
               MessageBox(0, "no, it's already allocated", 0, 0);
               return 0;
             }
-            soundChannel = SoundChannel_Open();
-            if (soundChannel == 0)
+            mainWindowSoundChannel = SoundChannel_Open();
+            if (mainWindowSoundChannel == 0)
             {
               MessageBox(0, "failed to open it", 0, 0);
             }
@@ -212,13 +216,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             return 0;
           
           case 1338:
-            if (soundBuffer)
+            if (mainWindowSoundBuffer)
             {
               MessageBox(0, "no, it's already loaded", 0, 0);
               return 0;
             }
-            soundBuffer = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Kt174_4.wav");
-            if (soundBuffer == 0)
+            mainWindowSoundBuffer = SoundBuffer_LoadFromFileW(L"C:\\games\\Lords of the Realm II\\Kt174_4.wav");
+            if (mainWindowSoundBuffer == 0)
             {
               MessageBox(0, "failed to load eet from file", 0, 0);
             }
@@ -229,21 +233,21 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             return 0;
 
           case 1339:
-            SoundChannel_Play(soundChannel, soundBuffer, 0);
+            SoundChannel_Play(mainWindowSoundChannel, mainWindowSoundBuffer, 0);
             return 0;
 
           case 1340:
-            SoundChannel_Stop(soundChannel);
+            SoundChannel_Stop(mainWindowSoundChannel);
             return 0;
             
           case 1341:
-            SoundBuffer_Release(soundBuffer);
-            soundBuffer = 0;
+            SoundBuffer_Release(mainWindowSoundBuffer);
+            mainWindowSoundBuffer = 0;
             return 0;
             
           case 1342:
-            SoundChannel_Release(soundChannel);
-            soundChannel = 0;
+            SoundChannel_Release(mainWindowSoundChannel);
+            mainWindowSoundChannel = 0;
             return 0;
             
           case 1343:
@@ -321,6 +325,12 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             MessageBox(0, "ok, bitmapped", 0, 0);
           }
           break;
+          
+          case 1348:
+          {
+            InvalidateRect(hwnd, 0, 1); 
+          }
+          break;
 
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);
@@ -347,6 +357,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
       
     case WM_PAINT:
     {
+      mainWindowPaintCount++;
       DrawSomeGl(hwnd);
 
       PAINTSTRUCT ps;
@@ -354,10 +365,17 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
       RECT        rc;
       hdc = BeginPaint(hwnd, &ps);
 
+      // draw some hello text
       GetClientRect(hwnd, &rc);
       SetTextColor(hdc, RGB(240,240,96));
       SetBkMode(hdc, TRANSPARENT);
       DrawText(hdc, mainWindowContent, -1, &rc, DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+
+      // provide an indication of how many paints have occurred      
+      rc.top = 30;
+      char nurp[50];
+      itoa(mainWindowPaintCount, nurp, 10);
+      DrawText(hdc, nurp, -1, &rc, DT_CENTER|DT_SINGLELINE|DT_VCENTER);
       
       DrawPeasantLabels(hdc);
 
@@ -605,29 +623,39 @@ void PlayPeasants()
 
 void DrawSomeGl(HWND hwnd)
 {
-  //Initialize Projection Matrix so drawing is done in pixel coordinates
-  // with top left at (0, 0) and bottom right at (width, height) just like desktop graphics
-  glMatrixMode( GL_PROJECTION );
+  // determine window width/height
   RECT bounds;
   GetClientRect(hwnd, &bounds);
   int width, height;
   width = abs(bounds.right - bounds.left);
   height = abs(bounds.bottom - bounds.top);
+
+  // update viewport when window has resized
+  // (so GL is aware there's more area to draw, rather than stretching stuff out)
+  if (memcmp(&mainWindowLastPaintSize, &bounds, sizeof(RECT)) != 0) {
+    glViewport(0, 0, width, height);
+  }
+  mainWindowLastPaintSize = bounds;
+
+  //Initialize Projection Matrix so drawing is done in pixel coordinates
+  // with top left at (0, 0) and bottom right at (width, height) just like desktop graphics
+  glMatrixMode( GL_PROJECTION );
+  glLoadIdentity();
   glOrtho(0, width, height, 0, -100, 100);
 
   //Initialize Modelview Matrix
-  glMatrixMode( GL_MODELVIEW );
+  glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
   
   //Initialize clear color
-  glClearColor( 0.2f, 0.3f, 0.4f, 1.0f );
+  glClearColor( 0.2f, 0.3f, 0.4f, 1.0f ); // blue-ish
 
     // apply the clear color 
   glClear( GL_COLOR_BUFFER_BIT );
   
       //Render quad
   glBegin( GL_QUADS );
-      glColor3f(0.5f, 0.5f, 0.5f);
+      glColor3f(0.5f, 0.5f, 0.5f); // gray
       glVertex2f(20, 20);
       glVertex2f(width - 20, 20);
       glVertex2f(width - 20, height - 20);
@@ -638,7 +666,7 @@ void DrawSomeGl(HWND hwnd)
   GLenum error = glGetError();
   if( error != GL_NO_ERROR )
   {
-      FATAL_ERROR( "Error drawing some OpenGL!");
+      DIAGNOSTIC_ERROR("Error drawing some OpenGL!");
       return;
   }
 
