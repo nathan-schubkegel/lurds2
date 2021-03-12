@@ -25,6 +25,7 @@ static SoundChannel mainWindowSoundChannel = 0;
 static SoundBuffer mainWindowSoundBuffer = 0;
 static HDC mainWindowHdc;
 static HGLRC mainWindowGlrc;
+static Bmp mainWindowBitmap;
 static int mainWindowPaintCount;
 static RECT mainWindowLastPaintSize;
 
@@ -317,12 +318,12 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
 
           case 1347:
           {
-            Bmp bitmap;
-            bitmap = Bmp_LoadFromResourceFile(L"res\\old_timey_font2.bmp");
-            if (bitmap == 0) break;
-            Bmp_GetPixelData(bitmap);
-            Bmp_Release(bitmap);
-            MessageBox(0, "ok, bitmapped", 0, 0);
+            if (mainWindowBitmap) Bmp_Release(mainWindowBitmap);
+            mainWindowBitmap = Bmp_LoadFromResourceFile(L"res\\old_timey_font.bmp");
+            if (mainWindowBitmap == 0) break;
+            MessageBox(0, "ok, loaded from resource file", 0, 0);
+            Bmp_LoadToOpenGL(mainWindowBitmap);
+            MessageBox(0, "ok, loaded to opengl", 0, 0);
           }
           break;
           
@@ -661,6 +662,17 @@ void DrawSomeGl(HWND hwnd)
       glVertex2f(width - 20, height - 20);
       glVertex2f(20, height - 20);
   glEnd();
+
+  if (mainWindowBitmap)
+  {
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glTranslated(200, 200, 0);
+
+    Bmp_Draw(mainWindowBitmap);
+    
+    glPopMatrix();
+  }
   
   //Check for error
   GLenum error = glGetError();

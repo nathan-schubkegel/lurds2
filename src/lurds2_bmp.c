@@ -8,6 +8,7 @@ Please refer to <http://unlicense.org/>
 
 #include "lurds2_errors.h"
 #include <wingdi.h>
+#include <GL/GL.h>
 
 #define DIAGNOSTIC_BMP_ERROR(message) DIAGNOSTIC_ERROR(message);
 #define DIAGNOSTIC_BMP_ERROR2(m1, m2) DIAGNOSTIC_ERROR2((m1), (m2));
@@ -60,6 +61,7 @@ typedef struct tagBITMAPINFOHEADER {
 typedef struct BmpData {
   BmpHeader* data;
   int length;
+  unsigned int glTextureId;
 } BmpData;
 
 Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
@@ -141,32 +143,19 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
     goto error;
   }
 
-  int rowStride = LURDS2_BMP_PIXEL_ROW_STRIDE(bmp->data->infoHeader);
+  int rowStride;
+  rowStride = LURDS2_BMP_PIXEL_ROW_STRIDE(bmp->data->infoHeader);
   if (bmp->data->pixelDataOffset + rowStride * bmp->data->infoHeader.biHeight > bmp->length) {
     DIAGNOSTIC_BMP_ERROR("bmp file is not long enough to hold advertised pixel data");
     goto error;
   }
-
+  
   return bmp;
 
 error:
   if (bmp->data != 0) free(bmp->data);
   free(bmp);
   return 0;
-}
-
-void* Bmp_GetPixelData(Bmp bmp)
-{
-  BmpData* bitmap;
-  bitmap = (BmpData*)bmp;
-
-  if (!bitmap)
-  {
-    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
-    return;
-  }
-
-  return ((char*)bitmap->data) + bitmap->data->pixelDataOffset;
 }
 
 void Bmp_Release(Bmp bmp)
@@ -180,6 +169,118 @@ void Bmp_Release(Bmp bmp)
     return;
   }
   
+  if (bitmap->glTextureId != 0) glDeleteTextures(1, &bitmap->glTextureId);
   if (bitmap->data != 0) free(bitmap->data);
   free(bitmap);
+}
+
+int Bmp_LoadToOpenGL(Bmp bmp)
+{
+  // TODO: use gluErrorString() in this method, from glu32.dll and glu32.lib
+  BmpData* bitmap;
+  bitmap = (BmpData*)bmp;
+
+  if (!bitmap) {
+    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
+    return 0;
+  }
+
+  if (bitmap->glTextureId != 0) {
+    DIAGNOSTIC_BMP_ERROR("bmp has already been loaded to opengl");
+    return 0;
+  }
+  
+  glGetError(); // clear error flag
+  glGenTextures(1, &bitmap->glTextureId);
+  if (glGetError() != NO_ERROR)
+  {
+    DIAGNOSTIC_BMP_ERROR("glGenTextures() refused to produce a texture id");
+    bitmap->glTextureId = 0;
+    return 0;
+  }
+
+  glBindTexture(GL_TEXTURE_2D, bitmap->glTextureId);
+  if (glGetError() != NO_ERROR)
+  {
+    DIAGNOSTIC_BMP_ERROR("glBindTexture() failed");
+    return 0;
+  }
+  
+  int rowStride;
+  rowStride = LURDS2_BMP_PIXEL_ROW_STRIDE(bitmap->data->infoHeader);
+  //glPixelStorei(GL_UNPACK_ROW_LENGTH, rowStride);
+  if (glGetError() != NO_ERROR)
+  {
+    DIAGNOSTIC_BMP_ERROR("glPixelStorei() failed");
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return 0;
+  }
+
+  MessageBox(0, "about to glTexImage2D", 0, 0);
+  glTexImage2D(
+    GL_TEXTURE_2D, // target
+    0, // level (has to do with mip mapping)
+    GL_RGBA, // internalFormat
+    bitmap->data->infoHeader.biWidth,
+    bitmap->data->infoHeader.biHeight,
+    0, // border
+    GL_RGB, // format
+    GL_UNSIGNED_BYTE, // type
+    ((char*)bitmap->data) + bitmap->data->pixelDataOffset);
+
+  if (glGetError() != NO_ERROR)
+  {
+    DIAGNOSTIC_BMP_ERROR("glTexImage2D() failed");
+    //glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return 0;
+  }
+  
+  //glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  
+  MessageBox(0, "done with glTexImage2D", 0, 0);
+  
+  return 1;
+}
+
+void Bmp_Draw(Bmp bmp)
+{
+  BmpData* bitmap;
+  bitmap = (BmpData*)bmp;
+
+  if (!bitmap) {
+    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
+    return;
+  }
+
+  if (bitmap->glTextureId == 0) {
+    DIAGNOSTIC_BMP_ERROR("bmp has not yet been loaded to opengl");
+    return;
+  }
+  
+  glEnable(GL_TEXTURE_2D);
+  glBindTexture(GL_TEXTURE_2D, bitmap->glTextureId);
+  
+  int oldTexEnv;
+  glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &oldTexEnv);
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+  glBegin(GL_QUADS);
+    glTexCoord2d(0, 0);
+    glVertex2d(0, 0);
+
+    glTexCoord2d(bitmap->data->infoHeader.biWidth, 0);
+    glVertex2d(bitmap->data->infoHeader.biWidth, 0);
+
+    glTexCoord2d(bitmap->data->infoHeader.biWidth, bitmap->data->infoHeader.biHeight);
+    glVertex2d(bitmap->data->infoHeader.biWidth, bitmap->data->infoHeader.biHeight);
+
+    glTexCoord2d(0, bitmap->data->infoHeader.biHeight);
+    glVertex2d(0, bitmap->data->infoHeader.biHeight);
+  glEnd();
+
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldTexEnv);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glDisable(GL_TEXTURE_2D);
 }
