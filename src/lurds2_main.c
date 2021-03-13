@@ -321,9 +321,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             if (mainWindowBitmap) Bmp_Release(mainWindowBitmap);
             mainWindowBitmap = Bmp_LoadFromResourceFile(L"res\\old_timey_font.bmp");
             if (mainWindowBitmap == 0) break;
-            MessageBox(0, "ok, loaded from resource file", 0, 0);
             Bmp_LoadToOpenGL(mainWindowBitmap);
-            MessageBox(0, "ok, loaded to opengl", 0, 0);
+            InvalidateRect(hwnd, 0, 1);
           }
           break;
           
@@ -667,7 +666,7 @@ void DrawSomeGl(HWND hwnd)
   {
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
-    glTranslated(200, 200, 0);
+    glTranslated(100, 100, 0);
 
     Bmp_Draw(mainWindowBitmap);
     

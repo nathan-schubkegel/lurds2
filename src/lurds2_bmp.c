@@ -150,6 +150,24 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
     goto error;
   }
   
+  // bitmaps store pixels in order Blue-Green-Red
+  // but opengl needs Red-Green-Blue, so swap them
+  char* start = (char*)bmp->data + bmp->data->pixelDataOffset;
+  int rowCount = bmp->data->infoHeader.biHeight;
+  int bytesPerElement = bmp->data->infoHeader.biBitCount / 8;
+  for (int row = 0; row < rowCount; row++)
+  {
+    char* rowStart = start + row * rowStride;
+    int columnCount = bmp->data->infoHeader.biWidth;
+    for (int column = 0; column < columnCount; column++)
+    {
+      char* c = rowStart + column * bytesPerElement;
+      char t = c[0];
+      c[0] = c[2];
+      c[2] = t;
+    }
+  }
+  
   return bmp;
 
 error:
@@ -208,7 +226,6 @@ int Bmp_LoadToOpenGL(Bmp bmp)
   
   int rowStride;
   rowStride = LURDS2_BMP_PIXEL_ROW_STRIDE(bitmap->data->infoHeader);
-  //glPixelStorei(GL_UNPACK_ROW_LENGTH, rowStride);
   if (glGetError() != NO_ERROR)
   {
     DIAGNOSTIC_BMP_ERROR("glPixelStorei() failed");
@@ -216,7 +233,6 @@ int Bmp_LoadToOpenGL(Bmp bmp)
     return 0;
   }
 
-  MessageBox(0, "about to glTexImage2D", 0, 0);
   glTexImage2D(
     GL_TEXTURE_2D, // target
     0, // level (has to do with mip mapping)
@@ -231,15 +247,18 @@ int Bmp_LoadToOpenGL(Bmp bmp)
   if (glGetError() != NO_ERROR)
   {
     DIAGNOSTIC_BMP_ERROR("glTexImage2D() failed");
-    //glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
     return 0;
   }
   
-  //glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+  // I'm grumpy I need to provide these for the bitmap to show up, but whatev okay --nathschu
+  // (what are the defaults if not "something that makes the texture appear"?)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  
   glBindTexture(GL_TEXTURE_2D, 0);
   
-  MessageBox(0, "done with glTexImage2D", 0, 0);
+  // TODO: theoretically could dump the texture data now that it's been loaded to opengl?
   
   return 1;
 }
@@ -267,16 +286,19 @@ void Bmp_Draw(Bmp bmp)
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
   glBegin(GL_QUADS);
-    glTexCoord2d(0, 0);
+    // NOTE: not sure whether it's rendering upside-down because my projection matrix is dumb
+    // or because my bitmap data is backwards from how opengl naturally renders... but I'm
+    // choosing to "fix" the problem via vertically-reversed texture coordinates
+    glTexCoord2d(0, 1);
     glVertex2d(0, 0);
 
-    glTexCoord2d(bitmap->data->infoHeader.biWidth, 0);
+    glTexCoord2d(1, 1);
     glVertex2d(bitmap->data->infoHeader.biWidth, 0);
 
-    glTexCoord2d(bitmap->data->infoHeader.biWidth, bitmap->data->infoHeader.biHeight);
+    glTexCoord2d(1, 0);
     glVertex2d(bitmap->data->infoHeader.biWidth, bitmap->data->infoHeader.biHeight);
 
-    glTexCoord2d(0, bitmap->data->infoHeader.biHeight);
+    glTexCoord2d(0, 0);
     glVertex2d(0, bitmap->data->infoHeader.biHeight);
   glEnd();
 
