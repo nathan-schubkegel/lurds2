@@ -12,7 +12,6 @@ typedef void* Bmp;
 
 // A Bmp holds the bitmap data for MS Paint image loaded from file.
 Bmp   Bmp_LoadFromResourceFile(const wchar_t * fileName);
-int   Bmp_LoadToOpenGL(Bmp bmp);
 void  Bmp_Draw(Bmp bmp);
 void  Bmp_Release(Bmp bmp);
 

@@ -59,10 +59,12 @@ typedef struct tagBITMAPINFOHEADER {
 #define LURDS2_BMP_PIXEL_ROW_STRIDE(infoHeader) (((((infoHeader).biWidth * (infoHeader).biBitCount) + 31) & ~31) >> 3)
 
 typedef struct BmpData {
-  BmpHeader* data;
-  int length;
+  int width; // in pixels
+  int height; // in pixels
   unsigned int glTextureId;
 } BmpData;
+
+static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data, int length);
 
 Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
 {
@@ -75,90 +77,93 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
   }
   memset(bmp, 0, sizeof(BmpData));
 
-  bmp->data = (BmpHeader*)ResourceFile_Load(fileName, &bmp->length);
-  if (bmp->data == 0) goto error;
+  BmpHeader* data = 0;
+  int length = 0;
 
-  if (bmp->length < sizeof(BmpHeader)) {
+  data = (BmpHeader*)ResourceFile_Load(fileName, &length);
+  if (data == 0) goto error;
+
+  if (length < sizeof(BmpHeader)) {
     DIAGNOSTIC_BMP_ERROR("unexpected too-small size of bmp file");
     goto error;
   }
 
-  if (bmp->data->fileSize != bmp->length) {
+  if (data->fileSize != length) {
     DIAGNOSTIC_BMP_ERROR("bmp header fileSize != actual bmp file size");
     goto error;
   }
 
-  if (bmp->data->pixelDataOffset > bmp->length) {
+  if (data->pixelDataOffset > length) {
     DIAGNOSTIC_BMP_ERROR("bmp header pixelDataOffset too large");
     goto error;
   }
 
-  if (memcmp(&bmp->data->bm, "BM", 2) != 0) {
+  if (memcmp(&data->bm, "BM", 2) != 0) {
     DIAGNOSTIC_SOUND_ERROR("unexpected non-bm signature in bmp file");
     goto error;
   }
 
-  if (bmp->data->headerSize != 40) {
+  if (data->headerSize != 40) {
     DIAGNOSTIC_SOUND_ERROR("unexpected non-BITMAPINFOHEADER header in bmp file");
     goto error;
   }
 
-  if (bmp->data->infoHeader.biWidth < 0) {
+  if (data->infoHeader.biWidth < 0) {
     DIAGNOSTIC_SOUND_ERROR("unexpected non-positive biWidth in bmp file");
     goto error;
   }
 
-  if (bmp->data->infoHeader.biWidth > 2000) {
+  if (data->infoHeader.biWidth > 2000) {
     DIAGNOSTIC_SOUND_ERROR("unexpected > 2000 biWidth in bmp file");
     goto error;
   }
 
-  if (bmp->data->infoHeader.biHeight < 0) {
+  if (data->infoHeader.biHeight < 0) {
     DIAGNOSTIC_SOUND_ERROR("unexpected non-positive biHeight in bmp file");
     goto error;
   }
 
-  if (bmp->data->infoHeader.biHeight > 2000) {
+  if (data->infoHeader.biHeight > 2000) {
     DIAGNOSTIC_SOUND_ERROR("unexpected > 2000 biHeight in bmp file");
     goto error;
   }
 
-  if (bmp->data->infoHeader.biPlanes != 1) {
+  if (data->infoHeader.biPlanes != 1) {
     DIAGNOSTIC_SOUND_ERROR("unexpected biPlanes != 1 in bmp file");
     goto error;
   }
 
-  if (bmp->data->infoHeader.biBitCount != 24) {
+  if (data->infoHeader.biBitCount != 24) {
     DIAGNOSTIC_SOUND_ERROR("unexpected biBitCount != 24 in bmp file");
     goto error;
   }
 
-  if (bmp->data->infoHeader.biCompression != BI_RGB) {
+  if (data->infoHeader.biCompression != BI_RGB) {
     DIAGNOSTIC_SOUND_ERROR("unexpected biCompression != BI_RGB (0) in bmp file");
     goto error;
   }
 
-  if (bmp->data->infoHeader.biClrUsed != 0) {
+  if (data->infoHeader.biClrUsed != 0) {
     DIAGNOSTIC_SOUND_ERROR("unexpected biClrUsed != 0 in bmp file");
     goto error;
   }
 
   int rowStride;
-  rowStride = LURDS2_BMP_PIXEL_ROW_STRIDE(bmp->data->infoHeader);
-  if (bmp->data->pixelDataOffset + rowStride * bmp->data->infoHeader.biHeight > bmp->length) {
+  rowStride = LURDS2_BMP_PIXEL_ROW_STRIDE(data->infoHeader);
+  if (data->pixelDataOffset + rowStride * data->infoHeader.biHeight > length) {
     DIAGNOSTIC_BMP_ERROR("bmp file is not long enough to hold advertised pixel data");
     goto error;
   }
   
   // bitmaps store pixels in order Blue-Green-Red
   // but opengl needs Red-Green-Blue, so swap them
-  char* start = (char*)bmp->data + bmp->data->pixelDataOffset;
-  int rowCount = bmp->data->infoHeader.biHeight;
-  int bytesPerElement = bmp->data->infoHeader.biBitCount / 8;
+  char* start = (char*)data + data->pixelDataOffset;
+  int rowCount = data->infoHeader.biHeight;
+  int bytesPerElement = data->infoHeader.biBitCount / 8;
   for (int row = 0; row < rowCount; row++)
   {
     char* rowStart = start + row * rowStride;
-    int columnCount = bmp->data->infoHeader.biWidth;
+    int columnCount = data->infoHeader.biWidth;
     for (int column = 0; column < columnCount; column++)
     {
       char* c = rowStart + column * bytesPerElement;
@@ -168,10 +173,19 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
     }
   }
   
+  bmp->width = data->infoHeader.biWidth;
+  bmp->height = data->infoHeader.biHeight;
+  
+  if (!Bmp_LoadToOpenGLTexture(bmp, data, length))
+  {
+    goto error;
+  }
+
+  free(data);
   return bmp;
 
 error:
-  if (bmp->data != 0) free(bmp->data);
+  if (data != 0) free(data);
   free(bmp);
   return 0;
 }
@@ -188,26 +202,12 @@ void Bmp_Release(Bmp bmp)
   }
   
   if (bitmap->glTextureId != 0) glDeleteTextures(1, &bitmap->glTextureId);
-  if (bitmap->data != 0) free(bitmap->data);
   free(bitmap);
 }
 
-int Bmp_LoadToOpenGL(Bmp bmp)
+static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data, int length)
 {
   // TODO: use gluErrorString() in this method, from glu32.dll and glu32.lib
-  BmpData* bitmap;
-  bitmap = (BmpData*)bmp;
-
-  if (!bitmap) {
-    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
-    return 0;
-  }
-
-  if (bitmap->glTextureId != 0) {
-    DIAGNOSTIC_BMP_ERROR("bmp has already been loaded to opengl");
-    return 0;
-  }
-  
   glGetError(); // clear error flag
   glGenTextures(1, &bitmap->glTextureId);
   if (glGetError() != NO_ERROR)
@@ -221,33 +221,27 @@ int Bmp_LoadToOpenGL(Bmp bmp)
   if (glGetError() != NO_ERROR)
   {
     DIAGNOSTIC_BMP_ERROR("glBindTexture() failed");
+    glDeleteTextures(1, &bitmap->glTextureId);
+    bitmap->glTextureId = 0;
     return 0;
   }
   
-  int rowStride;
-  rowStride = LURDS2_BMP_PIXEL_ROW_STRIDE(bitmap->data->infoHeader);
-  if (glGetError() != NO_ERROR)
-  {
-    DIAGNOSTIC_BMP_ERROR("glPixelStorei() failed");
-    glBindTexture(GL_TEXTURE_2D, 0);
-    return 0;
-  }
-
   glTexImage2D(
     GL_TEXTURE_2D, // target
     0, // level (has to do with mip mapping)
     GL_RGBA, // internalFormat
-    bitmap->data->infoHeader.biWidth,
-    bitmap->data->infoHeader.biHeight,
+    data->infoHeader.biWidth,
+    data->infoHeader.biHeight,
     0, // border
     GL_RGB, // format
     GL_UNSIGNED_BYTE, // type
-    ((char*)bitmap->data) + bitmap->data->pixelDataOffset);
+    (char*)data + data->pixelDataOffset);
 
   if (glGetError() != NO_ERROR)
   {
     DIAGNOSTIC_BMP_ERROR("glTexImage2D() failed");
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glDeleteTextures(1, &bitmap->glTextureId);
+    bitmap->glTextureId = 0;
     return 0;
   }
   
@@ -257,8 +251,6 @@ int Bmp_LoadToOpenGL(Bmp bmp)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   
   glBindTexture(GL_TEXTURE_2D, 0);
-  
-  // TODO: theoretically could dump the texture data now that it's been loaded to opengl?
   
   return 1;
 }
@@ -293,13 +285,13 @@ void Bmp_Draw(Bmp bmp)
     glVertex2d(0, 0);
 
     glTexCoord2d(1, 1);
-    glVertex2d(bitmap->data->infoHeader.biWidth, 0);
+    glVertex2d(bitmap->width, 0);
 
     glTexCoord2d(1, 0);
-    glVertex2d(bitmap->data->infoHeader.biWidth, bitmap->data->infoHeader.biHeight);
+    glVertex2d(bitmap->width, bitmap->height);
 
     glTexCoord2d(0, 0);
-    glVertex2d(0, bitmap->data->infoHeader.biHeight);
+    glVertex2d(0, bitmap->height);
   glEnd();
 
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldTexEnv);

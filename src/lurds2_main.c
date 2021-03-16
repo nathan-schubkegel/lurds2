@@ -321,14 +321,14 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             if (mainWindowBitmap) Bmp_Release(mainWindowBitmap);
             mainWindowBitmap = Bmp_LoadFromResourceFile(L"res\\old_timey_font.bmp");
             if (mainWindowBitmap == 0) break;
-            Bmp_LoadToOpenGL(mainWindowBitmap);
             InvalidateRect(hwnd, 0, 1);
           }
           break;
           
           case 1348:
           {
-            InvalidateRect(hwnd, 0, 1); 
+            InvalidateRect(hwnd, 0, 1);
+            SetFocus(hwnd);
           }
           break;
 
