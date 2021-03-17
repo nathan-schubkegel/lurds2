@@ -28,6 +28,7 @@ static HGLRC mainWindowGlrc;
 static Bmp mainWindowBitmap;
 static int mainWindowPaintCount;
 static RECT mainWindowLastPaintSize;
+static int mainWindowMemoryLeakDetectionEnabled;
 
 // shamelessly stolen from https://www.khronos.org/opengl/wiki/Creating_an_OpenGL_Context_(WGL)
 static PIXELFORMATDESCRIPTOR pfd =
@@ -57,6 +58,7 @@ void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, in
 void PlayPeasants();
 void DrawPeasantLabels(HDC hdc);
 void DrawSomeGl(HWND hwnd);
+void MemoryLeakTimerProc(HWND hwnd, UINT message, UINT_PTR id, DWORD msSinceSystemStart);
 
 int APIENTRY WinMain(
   HINSTANCE hInstance,
@@ -141,18 +143,19 @@ int APIENTRY WinMain(
   //MessageBoxA(0, (char*)glGetString(GL_VERSION), "OPENGL VERSION", 0);
   //wglDeleteContext(mainWindowGlrc);
   
-  CreateButton(mainWindowHandle, 1337, "Open", 50, 10, 10);
-  CreateButton(mainWindowHandle, 1338, "LoadBuffer", 100, 70, 10);
-  CreateButton(mainWindowHandle, 1339, "Play", 50, 180, 10);
-  CreateButton(mainWindowHandle, 1340, "Stop", 50, 240, 10);
-  CreateButton(mainWindowHandle, 1341, "KillBuffer", 100, 300, 10);
-  CreateButton(mainWindowHandle, 1342, "Kill", 50, 410, 10);
-  CreateButton(mainWindowHandle, 1343, "Peasants", 90, 10, 50);
-  CreateButton(mainWindowHandle, 1344, "ResFile", 80, 110, 50);
-  CreateButton(mainWindowHandle, 1345, "Looa", 50, 200, 50);
-  CreateButton(mainWindowHandle, 1346, "BigError", 90, 260, 50);
-  CreateButton(mainWindowHandle, 1347, "Bmp", 40, 360, 50);
-  CreateButton(mainWindowHandle, 1348, "Invalidate", 70, 410, 50);
+  CreateButton(mainWindowHandle, 1337, "Open", 40, 10, 5);
+  CreateButton(mainWindowHandle, 1338, "LoadBuffer", 80, 50, 5);
+  CreateButton(mainWindowHandle, 1339, "Play", 40, 130, 5);
+  CreateButton(mainWindowHandle, 1340, "Stop", 40, 170, 5);
+  CreateButton(mainWindowHandle, 1341, "KillBuffer", 80, 210, 5);
+  CreateButton(mainWindowHandle, 1342, "Kill", 40, 290, 5);
+  CreateButton(mainWindowHandle, 1343, "Peasants", 70, 330, 5);
+  CreateButton(mainWindowHandle, 1344, "ResFile", 60, 400, 5);
+  CreateButton(mainWindowHandle, 1345, "Looa", 40, 10, 35);
+  CreateButton(mainWindowHandle, 1346, "BigError", 60, 50, 35);
+  CreateButton(mainWindowHandle, 1347, "Bmp", 40, 110, 35);
+  CreateButton(mainWindowHandle, 1348, "Invalidate", 70, 150, 35);
+  CreateButton(mainWindowHandle, 1349, "MemLeak", 80, 220, 35);
   
   mainWindowFullScreen = 0;
 
@@ -329,6 +332,14 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
           {
             InvalidateRect(hwnd, 0, 1);
             SetFocus(hwnd);
+          }
+          break;
+          
+          case 1349:
+          {
+            if (!mainWindowMemoryLeakDetectionEnabled) SetTimer(hwnd, 124, 15, (TIMERPROC)MemoryLeakTimerProc);
+            else KillTimer(hwnd, 124);
+            mainWindowMemoryLeakDetectionEnabled = !mainWindowMemoryLeakDetectionEnabled;
           }
           break;
 
@@ -689,4 +700,14 @@ void DrawSomeGl(HWND hwnd)
    * earlier. */
   glFlush();
   SwapBuffers(mainWindowHdc);
+}
+
+void MemoryLeakTimerProc(
+  HWND hwnd,
+  UINT message,
+  UINT_PTR id,
+  DWORD msSinceSystemStart
+)
+{
+  InvalidateRect(hwnd, 0, 1);
 }
