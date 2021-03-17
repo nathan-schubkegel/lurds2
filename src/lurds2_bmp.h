@@ -13,6 +13,7 @@ typedef void* Bmp;
 // A Bmp holds the bitmap data for MS Paint image loaded from file.
 Bmp   Bmp_LoadFromResourceFile(const wchar_t * fileName);
 void  Bmp_Draw(Bmp bmp);
+void  Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height);
 void  Bmp_Release(Bmp bmp);
 
 #endif

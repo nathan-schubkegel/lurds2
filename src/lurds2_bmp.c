@@ -173,6 +173,27 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
     }
   }
   
+  // bitmaps store pixel data "last row first"
+  // but I want the "top row first" because that helps my opengl commands make sense without melting the mind
+  // so swap them
+  char * temp = malloc(rowStride);
+  if (temp == 0)
+  {
+    DIAGNOSTIC_BMP_ERROR("failed to allocate memory for bitmap row shuffling");
+    goto error;
+  }
+  for (int row = 0; row < rowCount / 2; row++)
+  {
+    int otherRow = rowCount - row - 1;
+    char* rowStart = start + row * rowStride;
+    char* otherRowStart = start + otherRow * rowStride;
+    
+    memcpy(temp, rowStart, rowStride);
+    memcpy(rowStart, otherRowStart, rowStride);
+    memcpy(otherRowStart, temp, rowStride);
+  }
+  free(temp);
+
   bmp->width = data->infoHeader.biWidth;
   bmp->height = data->infoHeader.biHeight;
   
@@ -278,20 +299,63 @@ void Bmp_Draw(Bmp bmp)
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
   glBegin(GL_QUADS);
-    // NOTE: not sure whether it's rendering upside-down because my projection matrix is dumb
-    // or because my bitmap data is backwards from how opengl naturally renders... but I'm
-    // choosing to "fix" the problem via vertically-reversed texture coordinates
-    glTexCoord2d(0, 1);
+    glTexCoord2d(0, 0);
     glVertex2d(0, 0);
 
-    glTexCoord2d(1, 1);
+    glTexCoord2d(1, 0);
     glVertex2d(bitmap->width, 0);
 
-    glTexCoord2d(1, 0);
+    glTexCoord2d(1, 1);
     glVertex2d(bitmap->width, bitmap->height);
 
-    glTexCoord2d(0, 0);
+    glTexCoord2d(0, 1);
     glVertex2d(0, bitmap->height);
+  glEnd();
+
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldTexEnv);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glDisable(GL_TEXTURE_2D);
+}
+
+void Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height)
+{
+  BmpData* bitmap;
+  bitmap = (BmpData*)bmp;
+
+  if (!bitmap) {
+    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
+    return;
+  }
+
+  if (bitmap->glTextureId == 0) {
+    DIAGNOSTIC_BMP_ERROR("bmp has not yet been loaded to opengl");
+    return;
+  }
+  
+  glEnable(GL_TEXTURE_2D);
+  glBindTexture(GL_TEXTURE_2D, bitmap->glTextureId);
+
+  int oldTexEnv;
+  glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &oldTexEnv);
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+  glBegin(GL_QUADS);
+    float u = (float)x / (float)bitmap->width;
+    float v = (float)y / (float)bitmap->height;
+    float uWidth = (float)width / (float)bitmap->width;
+    float vHeight = (float)height / (float)bitmap->height;
+
+    glTexCoord2f(u, v);
+    glVertex2d(0, 0);
+
+    glTexCoord2d(u + uWidth, v);
+    glVertex2d(width, 0);
+
+    glTexCoord2d(u + uWidth, v + vHeight);
+    glVertex2d(width, height);
+
+    glTexCoord2d(u, v + vHeight);
+    glVertex2d(0, height);
   glEnd();
 
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldTexEnv);

@@ -15,6 +15,9 @@ Please refer to <http://unlicense.org/>
 #include "lurds2_looa.c"
 #include "lurds2_bmp.c"
 
+#define VK_PAGEUP VK_PRIOR
+#define VK_PAGEDOWN VK_NEXT
+
 static char mainWindowClassName[] = "LURDS2";
 static char mainWindowTitle[]   = "Lurds of the Rolm 2";
 static char mainWindowContent[] = "Welcome to Lurds of the Rolm 2";
@@ -28,6 +31,12 @@ static HGLRC mainWindowGlrc;
 static Bmp mainWindowBitmap;
 static int mainWindowPaintCount;
 static RECT mainWindowLastPaintSize;
+static int mainWindowBitmapSlice_which;
+static int mainWindowBitmapSlice_xOrigin = 64;  // 46 64 14 35
+static int mainWindowBitmapSlice_width = 14;
+static int mainWindowBitmapSlice_yOrigin = 71;
+static int mainWindowBitmapSlice_yAboveOriginHeight = 25;
+static int mainWindowBitmapSlice_yBelowOriginHeight = 10;
 static int mainWindowMemoryLeakDetectionEnabled;
 
 // shamelessly stolen from https://www.khronos.org/opengl/wiki/Creating_an_OpenGL_Context_(WGL)
@@ -58,6 +67,7 @@ void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, in
 void PlayPeasants();
 void DrawPeasantLabels(HDC hdc);
 void DrawSomeGl(HWND hwnd);
+void HandleGlyphFinderKey(HWND hwnd, int key);
 void MemoryLeakTimerProc(HWND hwnd, UINT message, UINT_PTR id, DWORD msSinceSystemStart);
 
 int APIENTRY WinMain(
@@ -193,7 +203,14 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
           DestroyWindow(hwnd);
         }
       }
-      if (VK_F11 == wParam) SetFullScreen(!mainWindowFullScreen, hwnd);
+      else if (VK_F11 == wParam)
+      {
+        SetFullScreen(!mainWindowFullScreen, hwnd);
+      }
+      else if (VK_UP == wParam || VK_DOWN == wParam || VK_LEFT == wParam || VK_RIGHT == wParam || VK_PAGEUP == wParam || VK_PAGEDOWN == wParam)
+      {
+        HandleGlyphFinderKey(hwnd, (int)wParam);
+      }
       break;
       
     case WM_COMMAND:
@@ -677,10 +694,13 @@ void DrawSomeGl(HWND hwnd)
   {
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
+    glLoadIdentity();
     glTranslated(100, 100, 0);
-
     Bmp_Draw(mainWindowBitmap);
-    
+
+    glLoadIdentity();
+    glTranslated(50, 150, 0);
+    Bmp_DrawPortion(mainWindowBitmap, mainWindowBitmapSlice_xOrigin, mainWindowBitmapSlice_yOrigin - mainWindowBitmapSlice_yAboveOriginHeight, mainWindowBitmapSlice_width, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight);
     glPopMatrix();
   }
   
@@ -709,5 +729,85 @@ void MemoryLeakTimerProc(
   DWORD msSinceSystemStart
 )
 {
+  InvalidateRect(hwnd, 0, 1);
+}
+
+void HandleGlyphFinderKey(HWND hwnd, int key)
+{
+  if (key == VK_UP)
+  {
+    switch (mainWindowBitmapSlice_which)
+    {
+      case 0: // origin
+        mainWindowBitmapSlice_yOrigin--;
+        break;
+      case 1: // upper size
+        mainWindowBitmapSlice_yAboveOriginHeight++;
+        break;
+      case 2: // lower size
+        mainWindowBitmapSlice_yAboveOriginHeight--;
+        break;
+    }
+  }
+  else if (key == VK_DOWN)
+  {
+    switch (mainWindowBitmapSlice_which)
+    {
+      case 0: // origin
+        mainWindowBitmapSlice_yOrigin++;
+        break;
+      case 1: // upper size
+        mainWindowBitmapSlice_yAboveOriginHeight--;
+        break;
+      case 2: // lower size
+        mainWindowBitmapSlice_yAboveOriginHeight++;
+        break;
+    }
+  }
+  else if (key == VK_LEFT)
+  {
+    switch (mainWindowBitmapSlice_which)
+    {
+      case 0: // origin
+        mainWindowBitmapSlice_xOrigin--;
+        break;
+      case 1: // upper size
+        mainWindowBitmapSlice_width--;
+        break;
+      case 2: // lower size
+        mainWindowBitmapSlice_width--;
+        break;
+    }
+  }
+  else if (key == VK_RIGHT)
+  {
+    switch (mainWindowBitmapSlice_which)
+    {
+      case 0: // origin
+        mainWindowBitmapSlice_xOrigin++;
+        break;
+      case 1: // upper size
+        mainWindowBitmapSlice_width++;
+        break;
+      case 2: // lower size
+        mainWindowBitmapSlice_width++;
+        break;
+    }
+  }
+  else if (key == VK_PAGEUP)
+  {
+    mainWindowBitmapSlice_which++;
+    if (mainWindowBitmapSlice_which > 2) mainWindowBitmapSlice_which = 0;
+  }
+  else if (key == VK_PAGEDOWN)
+  {
+    mainWindowBitmapSlice_which--;
+    if (mainWindowBitmapSlice_which < 0) mainWindowBitmapSlice_which = 2;
+  }
+
+  if (mainWindowBitmapSlice_width < 0) mainWindowBitmapSlice_width = 0;
+  if (mainWindowBitmapSlice_yAboveOriginHeight < 0) mainWindowBitmapSlice_yAboveOriginHeight = 0;
+  if (mainWindowBitmapSlice_yBelowOriginHeight < 0) mainWindowBitmapSlice_yBelowOriginHeight = 0;
+
   InvalidateRect(hwnd, 0, 1);
 }
