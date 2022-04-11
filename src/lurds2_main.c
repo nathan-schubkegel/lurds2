@@ -60,15 +60,16 @@ static PIXELFORMATDESCRIPTOR pfd =
   0, 0, 0
 };
 
-void CenterWindow(HWND hWnd);
-void SetFullScreen(int yes, HWND hwnd);
-LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top);
-void PlayPeasants();
-void DrawPeasantLabels(HDC hdc);
-void DrawSomeGl(HWND hwnd);
-void HandleGlyphFinderKey(HWND hwnd, int key);
-void MemoryLeakTimerProc(HWND hwnd, UINT message, UINT_PTR id, DWORD msSinceSystemStart);
+static void CenterWindow(HWND hWnd);
+static void SetFullScreen(int yes, HWND hwnd);
+static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+static void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top);
+static void PlayPeasants();
+static void DrawPeasantLabels(HDC hdc);
+static void DrawSomeGl(HWND hwnd);
+static void HandleGlyphFinderKey(HWND hwnd, int key);
+static void DrawGlyphFinderStats(HDC hdc);
+static void MemoryLeakTimerProc(HWND hwnd, UINT message, UINT_PTR id, DWORD msSinceSystemStart);
 
 int APIENTRY WinMain(
   HINSTANCE hInstance,
@@ -166,6 +167,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1347, "Bmp", 40, 110, 35);
   CreateButton(mainWindowHandle, 1348, "Invalidate", 70, 150, 35);
   CreateButton(mainWindowHandle, 1349, "MemLeak", 80, 220, 35);
+  CreateButton(mainWindowHandle, 1350, "Focus", 50, 300, 35);
   
   mainWindowFullScreen = 0;
 
@@ -179,7 +181,7 @@ int APIENTRY WinMain(
   return msg.wParam;
 }
 
-LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
   switch (message) {
 
@@ -342,6 +344,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             mainWindowBitmap = Bmp_LoadFromResourceFile(L"res\\old_timey_font.bmp");
             if (mainWindowBitmap == 0) break;
             InvalidateRect(hwnd, 0, 1);
+            SetFocus(hwnd);
           }
           break;
           
@@ -357,6 +360,12 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             if (!mainWindowMemoryLeakDetectionEnabled) SetTimer(hwnd, 124, 15, (TIMERPROC)MemoryLeakTimerProc);
             else KillTimer(hwnd, 124);
             mainWindowMemoryLeakDetectionEnabled = !mainWindowMemoryLeakDetectionEnabled;
+          }
+          break;
+          
+          case 1350:
+          {
+            SetFocus(mainWindowHandle);
           }
           break;
 
@@ -406,6 +415,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
       DrawText(hdc, nurp, -1, &rc, DT_CENTER|DT_SINGLELINE|DT_VCENTER);
       
       DrawPeasantLabels(hdc);
+      
+      DrawGlyphFinderStats(hdc);
 
       EndPaint(hwnd, &ps);
       break;
@@ -418,7 +429,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
 }
 
 
-void SetFullScreen(int yes, HWND hwnd)
+static void SetFullScreen(int yes, HWND hwnd)
 {  
 #define WS_NOTFULLSCREEN  (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE)
 #define WS_FULLSCREEN     (WS_POPUP      |              WS_SYSMENU | WS_CLIPCHILDREN | WS_CLIPSIBLINGS               | WS_VISIBLE)
@@ -474,7 +485,7 @@ void SetFullScreen(int yes, HWND hwnd)
   }
 }
 
-void CenterWindow(HWND hwnd_self)
+static void CenterWindow(HWND hwnd_self)
 {
     HWND hwnd_parent;
     RECT rw_self, rc_parent, rw_parent;
@@ -498,7 +509,7 @@ void CenterWindow(HWND hwnd_self)
         );
 }
 
-void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top)
+static void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top)
 {
   HWND hwndButton = CreateWindow( 
     "BUTTON",  // Predefined class; Unicode assumed 
@@ -525,7 +536,7 @@ char peasantLoadTime[1000];
 char peasantPlayTime[1000];
 LONGLONG peasantPlayTicks;
 
-void Arrow1TimerProc(
+static void Arrow1TimerProc(
   HWND hwnd,
   UINT message,
   UINT_PTR id,
@@ -540,7 +551,7 @@ void Arrow1TimerProc(
   peasantPlayTicks += PerformanceCounter_MeasureTicks(startTime);
 }
 
-void Arrow2TimerProc(
+static void Arrow2TimerProc(
   HWND hwnd,
   UINT message,
   UINT_PTR id,
@@ -557,7 +568,7 @@ void Arrow2TimerProc(
 
 int hitCount = 0;
 
-void HitTimerProc(
+static void HitTimerProc(
   HWND hwnd,
   UINT message,
   UINT_PTR id,
@@ -586,7 +597,7 @@ void HitTimerProc(
   peasantPlayTicks += PerformanceCounter_MeasureTicks(startTime);
 }
 
-void UpdatePeasantLabelsProc(
+static void UpdatePeasantLabelsProc(
   HWND hwnd,
   UINT message,
   UINT_PTR id,
@@ -599,7 +610,7 @@ void UpdatePeasantLabelsProc(
   InvalidateRect(mainWindowHandle, 0, 1);
 }
 
-void DrawPeasantLabels(HDC hdc)
+static void DrawPeasantLabels(HDC hdc)
 {
   RECT rc;
   GetClientRect(mainWindowHandle, &rc);
@@ -615,7 +626,7 @@ void DrawPeasantLabels(HDC hdc)
   DrawText(hdc, peasantPlayTime, -1, &rc, DT_SINGLELINE);
 }
 
-void PlayPeasants()
+static void PlayPeasants()
 {
   if (peasantsLoaded) return;
   peasantsLoaded = 1;
@@ -649,7 +660,7 @@ void PlayPeasants()
   SetTimer(mainWindowHandle, 126, 300, (TIMERPROC)UpdatePeasantLabelsProc);
 }
 
-void DrawSomeGl(HWND hwnd)
+static void DrawSomeGl(HWND hwnd)
 {
   // determine window width/height
   RECT bounds;
@@ -665,7 +676,7 @@ void DrawSomeGl(HWND hwnd)
   }
   mainWindowLastPaintSize = bounds;
 
-  //Initialize Projection Matrix so drawing is done in pixel coordinates
+  // Initialize Projection Matrix so drawing is done in pixel coordinates
   // with top left at (0, 0) and bottom right at (width, height) just like desktop graphics
   glMatrixMode( GL_PROJECTION );
   glLoadIdentity();
@@ -678,10 +689,10 @@ void DrawSomeGl(HWND hwnd)
   //Initialize clear color
   glClearColor( 0.2f, 0.3f, 0.4f, 1.0f ); // blue-ish
 
-    // apply the clear color 
+  // apply the clear color 
   glClear( GL_COLOR_BUFFER_BIT );
   
-      //Render quad
+  //Render quad
   glBegin( GL_QUADS );
       glColor3f(0.5f, 0.5f, 0.5f); // gray
       glVertex2f(20, 20);
@@ -700,7 +711,48 @@ void DrawSomeGl(HWND hwnd)
 
     glLoadIdentity();
     glTranslated(50, 150, 0);
+    glScaled(3, 3, 1);
     Bmp_DrawPortion(mainWindowBitmap, mainWindowBitmapSlice_xOrigin, mainWindowBitmapSlice_yOrigin - mainWindowBitmapSlice_yAboveOriginHeight, mainWindowBitmapSlice_width, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight);
+    
+    // draw a single-pixel orange box around the bmp portion
+    glBegin( GL_QUADS );
+        glColor3f(1.0f, 0.5f, 0.0f); // orange
+
+        glVertex2f(-1, -1);
+        glVertex2f(mainWindowBitmapSlice_width + 1, -1);
+        glVertex2f(mainWindowBitmapSlice_width + 1, 0);
+        glVertex2f(-1, 0);
+        
+        glVertex2f(-1, -1);
+        glVertex2f(-1, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight + 1);
+        glVertex2f(0, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight + 1);
+        glVertex2f(0, -1);
+        
+        glVertex2f(mainWindowBitmapSlice_width, -1);
+        glVertex2f(mainWindowBitmapSlice_width, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight + 1);
+        glVertex2f(mainWindowBitmapSlice_width + 1, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight + 1);
+        glVertex2f(mainWindowBitmapSlice_width + 1, -1);
+        
+        glVertex2f(-1, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight);
+        glVertex2f(mainWindowBitmapSlice_width + 1, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight);
+        glVertex2f(mainWindowBitmapSlice_width + 1, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight + 1);
+        glVertex2f(-1, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight + 1);
+    glEnd();
+    
+    // give an indication of which are the "upper" and "lower" portions
+    glTranslated(-11, 0, 0);
+    glBegin( GL_QUADS );
+        glColor3f(0.0f, 1.0f, 0.0f); // green
+        glVertex2f(0.0f, 0.0f);
+        glVertex2f(10.0f, 0.0f);
+        glVertex2f(10.0f, mainWindowBitmapSlice_yAboveOriginHeight);
+        glVertex2f(0.0f, mainWindowBitmapSlice_yAboveOriginHeight);
+        glColor3f(1.0f, 0.0f, 0.0f); // red
+        glVertex2f(0.0f, mainWindowBitmapSlice_yAboveOriginHeight);
+        glVertex2f(10.0f, mainWindowBitmapSlice_yAboveOriginHeight);
+        glVertex2f(10.0f, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight);
+        glVertex2f(0.0f, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight);
+    glEnd();
     glPopMatrix();
   }
   
@@ -722,7 +774,7 @@ void DrawSomeGl(HWND hwnd)
   SwapBuffers(mainWindowHdc);
 }
 
-void MemoryLeakTimerProc(
+static void MemoryLeakTimerProc(
   HWND hwnd,
   UINT message,
   UINT_PTR id,
@@ -732,7 +784,7 @@ void MemoryLeakTimerProc(
   InvalidateRect(hwnd, 0, 1);
 }
 
-void HandleGlyphFinderKey(HWND hwnd, int key)
+static void HandleGlyphFinderKey(HWND hwnd, int key)
 {
   if (key == VK_UP)
   {
@@ -810,4 +862,58 @@ void HandleGlyphFinderKey(HWND hwnd, int key)
   if (mainWindowBitmapSlice_yBelowOriginHeight < 0) mainWindowBitmapSlice_yBelowOriginHeight = 0;
 
   InvalidateRect(hwnd, 0, 1);
+}
+
+static void DrawGlyphFinderStats(HDC hdc)
+{
+  if (mainWindowBitmap)
+  {
+    RECT rc;
+    GetClientRect(mainWindowHandle, &rc);
+    SetTextColor(hdc, RGB(0,255,255));
+    SetBkMode(hdc, TRANSPARENT);
+    rc.left += 500;
+
+    char buffer[1000];
+    char nurp[50];    
+    
+    strcpy(buffer, "xOrigin = ");
+    itoa(mainWindowBitmapSlice_xOrigin, nurp, 10);
+    strcat(buffer, nurp);
+    DrawText(hdc, buffer, -1, &rc, DT_SINGLELINE);
+
+    rc.top += 15;
+    strcpy(buffer, "yOrigin = ");
+    itoa(mainWindowBitmapSlice_yOrigin, nurp, 10);
+    strcat(buffer, nurp);
+    DrawText(hdc, buffer, -1, &rc, DT_SINGLELINE);
+    
+    rc.top += 15;
+    strcpy(buffer, "width = ");
+    itoa(mainWindowBitmapSlice_width, nurp, 10);
+    strcat(buffer, nurp);
+    DrawText(hdc, buffer, -1, &rc, DT_SINGLELINE);
+
+    rc.top += 15;
+    strcpy(buffer, "yAboveOriginHeight = ");
+    itoa(mainWindowBitmapSlice_yAboveOriginHeight, nurp, 10);
+    strcat(buffer, nurp);
+    DrawText(hdc, buffer, -1, &rc, DT_SINGLELINE);
+    
+    rc.top += 15;
+    strcpy(buffer, "yBelowOriginHeight = ");
+    itoa(mainWindowBitmapSlice_yBelowOriginHeight, nurp, 10);
+    strcat(buffer, nurp);
+    DrawText(hdc, buffer, -1, &rc, DT_SINGLELINE);
+    
+    rc.top += 15;
+    strcpy(buffer, "which = ");
+    switch (mainWindowBitmapSlice_which)
+    {
+      case 0: strcat(buffer, "origin"); break;
+      case 1: strcat(buffer, "upper size"); break;
+      case 2: strcat(buffer, "lower size"); break;
+    }
+    DrawText(hdc, buffer, -1, &rc, DT_SINGLELINE);
+  }
 }
