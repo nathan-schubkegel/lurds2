@@ -97,28 +97,47 @@ static DWORD WINAPI SoundThreadProc(LPVOID lpParameter)
     {
       case 0: return; // application requested to terminate
       case -1: 
-        DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessage());
+        DIAGNOSTIC_SOUND_ERROR2("GetMessage: ", GetLastErrorMessage());
         return;
     }
         
     switch (msg.message)
     {
-      case WM_SOUNDCHANNEL_OPEN: SoundChannel_Open_Handler(*(SoundChannelData**)&msg.wParam); break;
-      case WM_SOUNDCHANNEL_PLAY: 
+      case WM_SOUNDCHANNEL_OPEN:
+        SoundChannel_Open_Handler(*(SoundChannelData**)&msg.wParam);
+        SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam);
+        break;
+
+      case WM_SOUNDCHANNEL_PLAY:
         SoundChannel_Play_Handler(*(SoundChannelData**)&msg.wParam, *(SoundBufferData**)&msg.lParam, 0);
+        SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam);
+        SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.lParam);
         break;
-      case WM_SOUNDCHANNEL_PLAYLOOP: 
+        
+      case WM_SOUNDCHANNEL_PLAYLOOP:
         SoundChannel_Play_Handler(*(SoundChannelData**)&msg.wParam, *(SoundBufferData**)&msg.lParam, 1);
-        break;
-      case WM_SOUNDCHANNEL_STOP: SoundChannel_Stop_Handler(*(SoundChannelData**)&msg.wParam); break;
-      case WM_SOUNDCHANNEL_RELEASE: 
         SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam);
+        SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.lParam);
+        break;
+        
+      case WM_SOUNDCHANNEL_STOP:
+        SoundChannel_Stop_Handler(*(SoundChannelData**)&msg.wParam);
         SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam);
         break;
-      case WM_SOUNDBUFFER_LOADFROMFILE: SoundBuffer_LoadFromFileW_Handler(*(SoundBufferData**)&msg.wParam, *(wchar_t**)&msg.lParam); break;
-      case WM_SOUNDBUFFER_RELEASE: 
+        
+      case WM_SOUNDCHANNEL_RELEASE:
+        SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam); // once to do what the user asked
+        SoundChannel_Release_Handler(*(SoundChannelData**)&msg.wParam); // once for the refcount incremented for PostThreadMessage
+        break;
+        
+      case WM_SOUNDBUFFER_LOADFROMFILE:
+        SoundBuffer_LoadFromFileW_Handler(*(SoundBufferData**)&msg.wParam, *(wchar_t**)&msg.lParam);
         SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.wParam);
-        SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.wParam);
+        break;
+        
+      case WM_SOUNDBUFFER_RELEASE:
+        SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.wParam); // once to do what the user asked
+        SoundBuffer_Release_Handler(*(SoundBufferData**)&msg.wParam); // once for the refcount incremented for PostThreadMessage
         break;
     }
   }
@@ -130,6 +149,7 @@ void SoundThreadSetup()
   {
     while (0 != InterlockedCompareExchange(&SoundThreadInitSpinLock, 1, 0))
     {
+      SwitchToThread();
     }
 
     if (!SoundThreadCriticalSectionInitialized)
@@ -146,13 +166,14 @@ void SoundThreadSetup()
       established = 0;
       if (0 == (handle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)SoundThreadProc, (void*)&established, 0, &id)))
       {
-        DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessage());
+        DIAGNOSTIC_SOUND_ERROR2("CreateThread: ", GetLastErrorMessage());
       }
       else
       {
         // wait for thread to establish message queue, to guarantee that no calls to PostThreadMessage() fail for that reason
         while (!established)
         {
+          SwitchToThread();
         }
         SoundThread = handle;
         SoundThreadId = id;
@@ -165,7 +186,7 @@ void SoundThreadSetup()
 SoundChannel SoundChannel_Open()
 {
   SoundThreadSetup();
-  
+
   SoundChannelData* channel;
   channel = malloc(sizeof(SoundChannelData));
   if (channel == 0)
@@ -175,11 +196,11 @@ SoundChannel SoundChannel_Open()
   }
   memset(channel, 0, sizeof(SoundChannelData));
   InterlockedIncrement(&channel->refcount); // 1 for caller holding the reference
-  InterlockedIncrement(&channel->refcount); // 1 for SoundThread using it
+  InterlockedIncrement(&channel->refcount); // 1 for SoundThread using it, since we're calling PostThreadMessage next
 
   if (!PostThreadMessage(SoundThreadId, WM_SOUNDCHANNEL_OPEN, *(WPARAM*)&channel, 0))
   {
-    DIAGNOSTIC_SOUND_ERROR(GetLastErrorMessage());
+    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage: ", GetLastErrorMessage());
     free(channel);
     return 0;
   }
@@ -218,18 +239,17 @@ void SoundChannel_Open_Handler(SoundChannelData* channel)
       case WAVERR_SYNC: message = "The device is synchronous but waveOutOpen was called without using the WAVE_ALLOWSYNC flag."; break;
       default: message = "Unknown error."; break;
     }
-    DIAGNOSTIC_SOUND_ERROR2("waveOutOpen(): ", message);
+    DIAGNOSTIC_SOUND_ERROR2("waveOutOpen: ", message);
   }
   else
   {
     channel->handle = h;
   }
 #endif
-  SoundChannel_Release_Handler(channel);
   LeaveCriticalSection(&SoundThreadCriticalSection);
 }
 
-static void SoundChannel_Unbind_Handler(SoundChannelData* channel)
+static void SoundChannel_UnbindFromSoundBuffer(SoundChannelData* channel)
 {
   // NOTE: it's important this method ignore channel->refcount
   // (because sometimes it'll be 0 while this method runs, and that's valid)
@@ -254,7 +274,7 @@ static void SoundChannel_Unbind_Handler(SoundChannelData* channel)
           case MMSYSERR_NOTSUPPORTED: message = "Specified device is synchronous and does not support pausing."; break;
           default: message = "Unknown error."; break;
         }
-        DIAGNOSTIC_SOUND_ERROR2("waveOutReset(): ", message);
+        DIAGNOSTIC_SOUND_ERROR2("waveOutReset: ", message);
         // TODO: how to robustly recover from this kind of error?
       }
 
@@ -270,7 +290,7 @@ static void SoundChannel_Unbind_Handler(SoundChannelData* channel)
           case WAVERR_STILLPLAYING: message = "The data block pointed to by the pwh parameter is still in the queue."; break;
           default: message = "Unknown error."; break;
         }
-        DIAGNOSTIC_SOUND_ERROR2("waveOutUnprepareHeader(): ", message);
+        DIAGNOSTIC_SOUND_ERROR2("waveOutUnprepareHeader: ", message);
         // TODO: how to robustly recover from this kind of error?
       }
     }
@@ -281,7 +301,7 @@ static void SoundChannel_Unbind_Handler(SoundChannelData* channel)
   }
 }
 
-static long SoundChannel_Bind_Handler(SoundChannelData* channel, SoundBufferData* buffer, long loop)
+static long SoundChannel_BindToSoundBuffer(SoundChannelData* channel, SoundBufferData* buffer, long loop)
 {
   // if 'buffer' is already bound to this channel, then no-op
   if (buffer && buffer == channel->buffer)
@@ -289,7 +309,7 @@ static long SoundChannel_Bind_Handler(SoundChannelData* channel, SoundBufferData
     return 1;
   }
 
-  SoundChannel_Unbind_Handler(channel);
+  SoundChannel_UnbindFromSoundBuffer(channel);
 
 #ifdef LURDS2_USE_SOUND_MMEAPI
   // be graceful - it's possible that SoundChannel_Open_Handler couldn't open the handle
@@ -320,7 +340,7 @@ static long SoundChannel_Bind_Handler(SoundChannelData* channel, SoundBufferData
         case MMSYSERR_NOMEM: message = "Unable to allocate or lock memory."; break;
         default: message = "unknown error"; break;
       }
-      DIAGNOSTIC_SOUND_ERROR2("waveOutPrepareHeader(): ", message);
+      DIAGNOSTIC_SOUND_ERROR2("waveOutPrepareHeader: ", message);
       return 0;
     }
   }
@@ -333,6 +353,8 @@ static long SoundChannel_Bind_Handler(SoundChannelData* channel, SoundBufferData
 
 void SoundChannel_Play(SoundChannel soundChannel, SoundBuffer soundBuffer, long loop)
 {
+  SoundThreadSetup();
+
   SoundChannelData* channel = (SoundChannelData*)soundChannel;
   SoundBufferData* buffer = (SoundBufferData*)soundBuffer;
 
@@ -365,9 +387,10 @@ void SoundChannel_Play(SoundChannel soundChannel, SoundBuffer soundBuffer, long 
 
   if (!PostThreadMessage(SoundThreadId, loop ? WM_SOUNDCHANNEL_PLAYLOOP : WM_SOUNDCHANNEL_PLAY, *(WPARAM*)&channel, *(LPARAM*)&buffer))
   {
-    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage(): ", GetLastErrorMessage());
-    
     // better to just not play than to be out of order vs other operations
+    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage: ", GetLastErrorMessage());
+    
+    // decrement the refcounts incremented for PostThreadMessage
     SoundChannel_Release_Handler(channel);
     SoundBuffer_Release_Handler(buffer);
   }
@@ -381,7 +404,7 @@ void SoundChannel_Play_Handler(SoundChannelData* channel, SoundBufferData* buffe
   {
     // be graceful - can happen when SoundBuffer_LoadFromFileW_Handler() fails
   }
-  else if (!SoundChannel_Bind_Handler(channel, buffer, loop))
+  else if (!SoundChannel_BindToSoundBuffer(channel, buffer, loop))
   {
     // it speaks for itself
   }
@@ -403,7 +426,7 @@ void SoundChannel_Play_Handler(SoundChannelData* channel, SoundBufferData* buffe
         case MMSYSERR_NOTSUPPORTED: message = "Specified device is synchronous and does not support pausing."; break;
         default: message = "Unknown error."; break;
       }
-      DIAGNOSTIC_SOUND_ERROR2("waveOutReset(): ", message);
+      DIAGNOSTIC_SOUND_ERROR2("waveOutReset: ", message);
       // TODO: how to robustly recover from this kind of error?
     }
 
@@ -419,18 +442,18 @@ void SoundChannel_Play_Handler(SoundChannelData* channel, SoundBufferData* buffe
         case WAVERR_UNPREPARED: message = "The data block pointed to by the pwh parameter hasn't been prepared."; break;
         default: message = "unknown error";
       }
-      DIAGNOSTIC_SOUND_ERROR2("waveOutWrite(): ", message);
+      DIAGNOSTIC_SOUND_ERROR2("waveOutWrite: ", message);
     }
   }
 #endif
 
-  SoundChannel_Release_Handler(channel);
-  SoundBuffer_Release_Handler(buffer);
   LeaveCriticalSection(&SoundThreadCriticalSection);
 }
 
 void SoundChannel_Stop(SoundChannel soundChannel)
 {
+  SoundThreadSetup();
+
   SoundChannelData* channel = (SoundChannelData*)soundChannel;
 
   if (!channel)
@@ -448,9 +471,10 @@ void SoundChannel_Stop(SoundChannel soundChannel)
   
   if (!PostThreadMessage(SoundThreadId, WM_SOUNDCHANNEL_STOP, *(WPARAM*)&channel, 0))
   {
-    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage(): ", GetLastErrorMessage());
-    
     // better to just not stop the sound than to perform this operation out of order vs. others
+    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage: ", GetLastErrorMessage());
+    
+    // decrement the refcount incremented for PostThreadMessage
     SoundChannel_Release_Handler(channel);
   }
 }
@@ -479,19 +503,20 @@ void SoundChannel_Stop_Handler(SoundChannelData* channel)
           case MMSYSERR_NOTSUPPORTED: message = "Specified device is synchronous and does not support pausing."; break;
           default: message = "Unknown error."; break;
         }
-        DIAGNOSTIC_SOUND_ERROR2("waveOutReset(): ", message);
+        DIAGNOSTIC_SOUND_ERROR2("waveOutReset: ", message);
         // TODO: how to robustly recover from this kind of error?
       }
     }
   #endif
   }
   
-  SoundChannel_Release_Handler(channel);
   LeaveCriticalSection(&SoundThreadCriticalSection);
 }
 
 void SoundChannel_Release(SoundChannel soundChannel)
 {
+  SoundThreadSetup();
+
   SoundChannelData* channel = (SoundChannelData*)soundChannel;
 
   if (!channel)
@@ -509,7 +534,9 @@ void SoundChannel_Release(SoundChannel soundChannel)
   
   if (!PostThreadMessage(SoundThreadId, WM_SOUNDCHANNEL_RELEASE, *(WPARAM*)&channel, 0))
   {
-    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage(): ", GetLastErrorMessage());
+    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage: ", GetLastErrorMessage());
+
+    // decrement the refcounts
     SoundChannel_Release_Handler(channel); // once for the increment done for PostThreadMessage
     SoundChannel_Release_Handler(channel); // once to do what the user asked
   }
@@ -531,7 +558,7 @@ void SoundChannel_Release_Handler(SoundChannelData* channel)
   }
   else
   {
-    SoundChannel_Unbind_Handler(channel);
+    SoundChannel_UnbindFromSoundBuffer(channel);
 
 #ifdef LURDS2_USE_SOUND_MMEAPI
     // be graceful - it's possible that SoundChannel_Open_Handler couldn't open the handle
@@ -550,7 +577,7 @@ void SoundChannel_Release_Handler(SoundChannelData* channel)
           case WAVERR_STILLPLAYING: message = "There are still buffers in the queue."; break;
           default: message = "Unknown error."; break;
         }
-        DIAGNOSTIC_SOUND_ERROR2("waveOutClose(): ", message);
+        DIAGNOSTIC_SOUND_ERROR2("waveOutClose: ", message);
         // TODO: how to robustly recover from this kind of error?
       }
       channel->handle = 0;
@@ -565,6 +592,8 @@ void SoundChannel_Release_Handler(SoundChannelData* channel)
 
 SoundBuffer SoundBuffer_LoadFromFileW(const wchar_t * filePath)
 {
+  SoundThreadSetup();
+
   if (filePath == 0)
   {
     DIAGNOSTIC_SOUND_ERROR("null filePath arg");
@@ -594,12 +623,15 @@ SoundBuffer SoundBuffer_LoadFromFileW(const wchar_t * filePath)
   memset(buffer, 0, sizeof(SoundBufferData));
   
   InterlockedIncrement(&buffer->refcount); // 1 for caller holding the reference
-  InterlockedIncrement(&buffer->refcount); // 1 for SoundThread using it
+  InterlockedIncrement(&buffer->refcount); // 1 for SoundThread using it, since we're calling PostThreadMessage next
 
   if (!PostThreadMessage(SoundThreadId, WM_SOUNDBUFFER_LOADFROMFILE, *(WPARAM*)&buffer, *(LPARAM*)&filePathCopy))
   {
-    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage(): ", GetLastErrorMessage());
-    SoundBuffer_LoadFromFileW_Handler(buffer, filePathCopy);
+    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage: ", GetLastErrorMessage());
+
+    // decrement the refcount incremented for PostThreadMessage
+    SoundBuffer_Release_Handler(buffer);
+    free(filePathCopy);
   }
   return buffer;
 }
@@ -615,7 +647,7 @@ void SoundBuffer_LoadFromFileW_Handler(SoundBufferData * buffer, wchar_t * fileP
   h = CreateFileW(filePathCopy, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
   if (h == INVALID_HANDLE_VALUE)
   {
-    DIAGNOSTIC_SOUND_ERROR2("CreateFileW(): ", GetLastErrorMessage());
+    DIAGNOSTIC_SOUND_ERROR2("CreateFileW: ", GetLastErrorMessage());
     goto error;
   }
 
@@ -624,7 +656,7 @@ void SoundBuffer_LoadFromFileW_Handler(SoundBufferData * buffer, wchar_t * fileP
   size = GetFileSize(h, &sizeHigh);
   if (INVALID_FILE_SIZE == size)
   {
-    DIAGNOSTIC_SOUND_ERROR2("GetFileSize(): ", GetLastErrorMessage());
+    DIAGNOSTIC_SOUND_ERROR2("GetFileSize: ", GetLastErrorMessage());
     goto error;
   }
 
@@ -753,7 +785,6 @@ void SoundBuffer_LoadFromFileW_Handler(SoundBufferData * buffer, wchar_t * fileP
   EnterCriticalSection(&SoundThreadCriticalSection);
   buffer->data = data;
   buffer->length = size;
-  SoundBuffer_Release_Handler(buffer);
   LeaveCriticalSection(&SoundThreadCriticalSection);
   return;
   
@@ -761,11 +792,12 @@ error:
   if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
   if (data != 0) free(data);
   if (filePathCopy != 0) free(filePathCopy);
-  SoundBuffer_Release_Handler(buffer);
 }
 
 void SoundBuffer_Release(SoundBuffer soundBuffer)
 {
+  SoundThreadSetup();
+
   SoundBufferData* buffer;
   buffer = (SoundBufferData*)soundBuffer;
 
@@ -784,7 +816,7 @@ void SoundBuffer_Release(SoundBuffer soundBuffer)
   
   if (!PostThreadMessage(SoundThreadId, WM_SOUNDBUFFER_RELEASE, *(WPARAM*)&buffer, 0))
   {
-    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage(): ", GetLastErrorMessage());
+    DIAGNOSTIC_SOUND_ERROR2("PostThreadMessage: ", GetLastErrorMessage());
     SoundBuffer_Release_Handler(buffer); // once for the increment done for PostThreadMessage
     SoundBuffer_Release_Handler(buffer); // once to do what the user asked
   }
