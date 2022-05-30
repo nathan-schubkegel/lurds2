@@ -14,6 +14,7 @@ Please refer to <http://unlicense.org/>
 #include "lurds2_resourceFile.c"
 #include "lurds2_looa.c"
 #include "lurds2_bmp.c"
+#include "lurds2_stack.c"
 
 #define VK_PAGEUP VK_PRIOR
 #define VK_PAGEDOWN VK_NEXT
@@ -168,6 +169,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1348, "Invalidate", 70, 150, 35);
   CreateButton(mainWindowHandle, 1349, "MemLeak", 80, 220, 35);
   CreateButton(mainWindowHandle, 1350, "Focus", 50, 300, 35);
+  CreateButton(mainWindowHandle, 1351, "StackTests", 85, 350, 35);
   
   mainWindowFullScreen = 0;
 
@@ -368,6 +370,38 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
             SetFocus(mainWindowHandle);
           }
           break;
+          
+          case 1351:
+          {
+            Stack s = Stack_Create(4);
+            if (Stack_Count(s) != 0) DIAGNOSTIC_ERROR("stack size should be 0 here");
+            for (int s2 = 0; s2 < 35; s2++)
+            {
+              int* s3 = Stack_Push(s);
+              if (s3 == 0) DIAGNOSTIC_ERROR("push failed?");
+              *s3 = s2;
+              int* s4 = Stack_Peek(s);
+              if (s4 != s3) DIAGNOSTIC_ERROR("peek result after push should be identical");
+            }
+            if (Stack_Count(s) != 35) DIAGNOSTIC_ERROR("stack size should be 35 here");
+            for (int s2 = 0; s2 < 35; s2++)
+            {
+              int* s3 = Stack_Get(s, s2);
+              if (s3 == 0) DIAGNOSTIC_ERROR("get failed?");
+              if (*s3 != s2) DIAGNOSTIC_ERROR("got unexpected value");
+            }
+            for (int s2 = 34; s2 >= 0; s2--)
+            {
+              int* s5 = Stack_Peek(s);
+              if (s5 == 0) DIAGNOSTIC_ERROR("peek failed?");
+              else if (*s5 != s2) DIAGNOSTIC_ERROR("peek value unexpected");
+              Stack_Pop(s);
+              if (Stack_Count(s) != s2) DIAGNOSTIC_ERROR("stack size should be something here");
+            }
+            if (Stack_Count(s) != 0) DIAGNOSTIC_ERROR("stack count should finally be 0 here");
+            Stack_Release(s);
+            MessageBox(0, "stack tested ok i guess", 0, 0);
+          }
 
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);
