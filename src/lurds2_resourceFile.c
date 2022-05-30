@@ -138,7 +138,7 @@ void* ResourceFile_Load(const wchar_t* fileName, int* fileSize)
     goto error;
   }
 
-  data = malloc(size);
+  data = malloc(size + 2);
   if (data == 0)
   {
     DIAGNOSTIC_RESOURCE_ERROR("failed to allocate memory for file data");
@@ -160,6 +160,10 @@ void* ResourceFile_Load(const wchar_t* fileName, int* fileSize)
 
   // ding fries are done
   CloseHandle(h);
+  
+  // null terminate the data, for convenience if file contains string data
+  ((char*)data)[size] = 0;
+  ((char*)data)[size + 1] = 0;
 
   if (fileSize) *fileSize = size;
   return data;
