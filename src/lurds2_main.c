@@ -14,6 +14,7 @@ Please refer to <http://unlicense.org/>
 #include "lurds2_resourceFile.c"
 #include "lurds2_looa.c"
 #include "lurds2_bmp.c"
+#include "lurds2_jsonstream.c"
 #include "lurds2_stack.c"
 
 #define VK_PAGEUP VK_PRIOR
@@ -170,6 +171,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1349, "MemLeak", 80, 220, 35);
   CreateButton(mainWindowHandle, 1350, "Focus", 50, 300, 35);
   CreateButton(mainWindowHandle, 1351, "StackTests", 85, 350, 35);
+  CreateButton(mainWindowHandle, 1352, "JsonTests", 75, 10, 65);
   
   mainWindowFullScreen = 0;
 
@@ -402,6 +404,86 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
             Stack_Release(s);
             MessageBox(0, "stack tested ok i guess", 0, 0);
           }
+          break;
+          
+          case 1352:
+          {
+            JsonStream s = JsonStream_Parse("blah", "test1.json");
+            JsonStreamTokenType t = JsonStream_MoveNext(s);
+            if (t != JsonStreamError) DIAGNOSTIC_ERROR("test1 should have failed?");
+            JsonStream_Release(s);
+
+            s = JsonStream_Parse("\"a string\"", "test2.json");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamString) DIAGNOSTIC_ERROR("test2 should have been string?");
+            int32_t u;
+            const char* v = JsonStream_GetString(s, &u);
+            if (u != 8) DIAGNOSTIC_ERROR("expected test2 string length == 8");
+            if (strcmp(v, "a string") != 0) DIAGNOSTIC_ERROR("expected test2 string == a string");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamEnd) DIAGNOSTIC_ERROR("test2 should have ended?");
+            JsonStream_Release(s);
+            
+            MessageBox(0, "starting test3...", 0, 0);
+            s = JsonStream_Parse("// yeah \n { \"num\": 33, \"name\" : \"charley! \\\"the unicorn\\\" manure-pile\\r\\nSteve.\", \"nom\": { \"whut\": null }, \"dem\": [false, true, 33, \"44\", {}] } /* ok this is the end */", "test3.json");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamObjectStart) DIAGNOSTIC_ERROR("test3 first step should have been object start?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamPropertyName) DIAGNOSTIC_ERROR("test3 second step should have been property name?");
+            v = JsonStream_GetString(s, &u);
+            if (u != 3) DIAGNOSTIC_ERROR("expected test3 second step property name length == 3");
+            if (strcmp(v, "num") != 0) DIAGNOSTIC_ERROR("expected test3 second step property name == num");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamNumber) DIAGNOSTIC_ERROR("test3 third step should have been number?");
+            int64_t w = JsonStream_GetNumberInt(s);
+            if (w != 33) DIAGNOSTIC_ERROR("test3 third step should have been == 33?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamPropertyName) DIAGNOSTIC_ERROR("test3 fourth step should have been property name?");
+            v = JsonStream_GetString(s, &u);
+            if (u != 4) DIAGNOSTIC_ERROR("expected test3 fourth step property name length == 4");
+            if (strcmp(v, "name") != 0) DIAGNOSTIC_ERROR("expected test3 fourth step property name == name");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamString) DIAGNOSTIC_ERROR("test3 fifth step should have been string?");
+            v = JsonStream_GetString(s, &u);
+            if (u != 42) DIAGNOSTIC_ERROR("expected test3 fifth step property name length == 42");
+            if (strcmp(v, "charley! \"the unicorn\" manure-pile\r\nSteve.") != 0) DIAGNOSTIC_ERROR("expected test3 second step property name == charlie! and so on");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamPropertyName) DIAGNOSTIC_ERROR("test3 sixth step should have been property name?");
+            v = JsonStream_GetString(s, &u);
+            if (u != 3) DIAGNOSTIC_ERROR("expected test3 sixth step property name length == 3");
+            if (strcmp(v, "nom") != 0) DIAGNOSTIC_ERROR("expected test3 sixth step property name == nom");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamObjectStart) DIAGNOSTIC_ERROR("test3 seventh step should have been object start?");
+            // I'm tired of testing now. Bleh.
+            t = JsonStream_MoveNext(s);
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamNull) DIAGNOSTIC_ERROR("test3 eight step should have been null?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamObjectEnd) DIAGNOSTIC_ERROR("test3 eight step should have been null?");
+            t = JsonStream_MoveNext(s);
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamArrayStart) DIAGNOSTIC_ERROR("test3 ninth step should have been array start?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamFalse) DIAGNOSTIC_ERROR("test3 tenth step should have been false?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamTrue) DIAGNOSTIC_ERROR("test3 eleventh step should have been true?");
+            t = JsonStream_MoveNext(s);
+            t = JsonStream_MoveNext(s);
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamObjectStart) DIAGNOSTIC_ERROR("test3 twelfth step should have been object start?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamObjectEnd) DIAGNOSTIC_ERROR("test3 thirteenth step should have been object end?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamArrayEnd) DIAGNOSTIC_ERROR("test3 fourteenth step should have been array end?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamObjectEnd) DIAGNOSTIC_ERROR("test3 fifteenth step should have been object end?");
+            t = JsonStream_MoveNext(s);
+            if (t != JsonStreamEnd) DIAGNOSTIC_ERROR("test3 fifteenth step should have been stream end?");
+            JsonStream_Release(s);
+
+            MessageBox(0, "json tested ok i guess", 0, 0);
+          }
+          break;
 
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);

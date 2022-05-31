@@ -3,3 +3,5 @@ tcc/
 lua-5.4.2/
 stuff/
 /lurds2.exe
+*.bak
+*.orig
