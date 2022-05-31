@@ -831,7 +831,7 @@ static void HandleGlyphFinderKey(HWND hwnd, int key)
         mainWindowBitmapSlice_yAboveOriginHeight++;
         break;
       case 2: // lower size
-        mainWindowBitmapSlice_yAboveOriginHeight--;
+        mainWindowBitmapSlice_yBelowOriginHeight--;
         break;
     }
   }
@@ -846,7 +846,7 @@ static void HandleGlyphFinderKey(HWND hwnd, int key)
         mainWindowBitmapSlice_yAboveOriginHeight--;
         break;
       case 2: // lower size
-        mainWindowBitmapSlice_yAboveOriginHeight++;
+        mainWindowBitmapSlice_yBelowOriginHeight++;
         break;
     }
   }

@@ -8,7 +8,6 @@ Please refer to <http://unlicense.org/>
 #define LURDS2_BMP
 
 typedef void* Bmp;
-typedef void* Bmp;
 
 // A Bmp holds the bitmap data for MS Paint image loaded from file.
 Bmp   Bmp_LoadFromResourceFile(const wchar_t * fileName);

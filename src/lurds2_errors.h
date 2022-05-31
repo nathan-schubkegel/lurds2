@@ -9,15 +9,15 @@ Please refer to <http://unlicense.org/>
 
 #define BUILD_ASSERT(expr) extern char BuildAssertThing[(expr) ? 1 : -1];
 
-#define DIAGNOSTIC_ERROR(expr) ShowDiagnosticError(__FILE__, __FUNCTION__, __LINE__, (expr));
-#define DIAGNOSTIC_ERROR2(e1, e2) ShowDiagnosticError2(__FILE__, __FUNCTION__, __LINE__, (e1), (e2));
-#define DIAGNOSTIC_ERROR3(e1, e2, e3) ShowDiagnosticError3(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3));
-#define DIAGNOSTIC_ERROR4(e1, e2, e3, e4) ShowDiagnosticError4(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3), (e4));
+#define DIAGNOSTIC_ERROR(expr) ShowDiagnosticError(__FILE__, __FUNCTION__, __LINE__, (expr))
+#define DIAGNOSTIC_ERROR2(e1, e2) ShowDiagnosticError2(__FILE__, __FUNCTION__, __LINE__, (e1), (e2))
+#define DIAGNOSTIC_ERROR3(e1, e2, e3) ShowDiagnosticError3(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3))
+#define DIAGNOSTIC_ERROR4(e1, e2, e3, e4) ShowDiagnosticError4(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3), (e4))
 
-#define FATAL_ERROR(expr) ShowFatalErrorThenKillProcess(__FILE__, __FUNCTION__, __LINE__, (expr));
-#define FATAL_ERROR2(e1, e2) ShowFatalErrorThenKillProcess2(__FILE__, __FUNCTION__, __LINE__, (e1), (e2));
-#define FATAL_ERROR3(e1, e2, e3) ShowFatalErrorThenKillProcess3(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3));
-#define FATAL_ERROR4(e1, e2, e3, e4) ShowFatalErrorThenKillProcess4(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3), (e4));
+#define FATAL_ERROR(expr) ShowFatalErrorThenKillProcess(__FILE__, __FUNCTION__, __LINE__, (expr))
+#define FATAL_ERROR2(e1, e2) ShowFatalErrorThenKillProcess2(__FILE__, __FUNCTION__, __LINE__, (e1), (e2))
+#define FATAL_ERROR3(e1, e2, e3) ShowFatalErrorThenKillProcess3(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3))
+#define FATAL_ERROR4(e1, e2, e3, e4) ShowFatalErrorThenKillProcess4(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3), (e4))
 
 char* GetLastErrorMessage();
 char* CopyWstrToCstr(const wchar_t* input);
