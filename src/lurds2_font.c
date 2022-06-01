@@ -22,8 +22,9 @@ typedef struct FontCharacter {
   int32_t heightDown; // The number of pixels down from yOrigin
 } FontCharacter;
 
+#define FONTDATA_MAXCHARACTERS 128
 typedef struct FontData {
-  FontCharacter characters[128];
+  FontCharacter characters[FONTDATA_MAXCHARACTERS];
 }
 
 Font Font_LoadFromResourceFile(const wchar_t * fileName)
@@ -47,7 +48,11 @@ Font Font_LoadFromResourceFile(const wchar_t * fileName)
   // walk through JsonStream data to determine bmp file name and points
   int done = 0;
   int inCharacterMap = 0;
-  int character = 0;
+  char* propName;
+  int32_t propNameLength;
+  char* bitmapFileName = 0;
+  wchar_t* wBitmapFileName = 0;
+  int32_t bitmapFileNameLength = 0;
   while (!done) {
     JsonStreamTokenType t = JsonStream_MoveNext(stream);
     switch
@@ -61,32 +66,109 @@ Font Font_LoadFromResourceFile(const wchar_t * fileName)
       case JsonStreamEnd:
         done = 1;
         break;
-        
-      case JsonStreamObjectStart,
+
+      case JsonStreamPropertyName:
+        propName = JsonStream_GetString(stream, &propNameLength);
+        if (propName == 0)
+        {
+          DIAGNOSTIC_FONT_ERROR2("failed to GetString() for JsonStreamPropertyName in ", JsonStream_GetDebugIdentifier(stream));
+          JsonStream_Release(stream);
+          free(data);
+          return 0;
+        }
+        else if (inCharacterMap)
+        {
+          if (propNameLength == 1)
+          {
+            int32_t character = propName[0];
+            if (character < 0 || character >= FONTDATA_MAXCHARACTERS)
+            {
+              DIAGNOSTIC_FONT_ERROR4("Unexpected/invalid \"characters\" key \"", propName, "\" (must be ASCII) in ", JsonStream_GetDebugIdentifier(stream));
+              JsonStream_Release(stream);
+              free(data);
+              return 0;
+            }
+
+            // read the 5 numbers
+            if (JsonStream_MoveNext(stream) != JsonStreamArrayStart) goto bonk;
+
+            if (JsonStream_MoveNext(stream) == JsonStreamNumber) data->characters[character].xOrigin = JsonStream_GetNumberInt(stream);
+            else goto bonk;
+            
+            if (JsonStream_MoveNext(stream) == JsonStreamNumber) data->characters[character].yOrigin = JsonStream_GetNumberInt(stream);
+            else goto bonk;
+            
+            if (JsonStream_MoveNext(stream) == JsonStreamNumber) data->characters[character].width = JsonStream_GetNumberInt(stream);
+            else goto bonk;
+            
+            if (JsonStream_MoveNext(stream) == JsonStreamNumber) data->characters[character].heightUp = JsonStream_GetNumberInt(stream);
+            else goto bonk;
+            
+            if (JsonStream_MoveNext(stream) == JsonStreamNumber) data->characters[character].heightDown = JsonStream_GetNumberInt(stream);
+            else goto bonk;
+            
+            if (JsonStream_MoveNext(stream) == JsonStreamArrayEnd) goto bonk;
+            
+            if (0)
+            {
+            bonk:
+              DIAGNOSTIC_FONT_ERROR2("expected array of 5 numbers, but got something else in ", JsonStream_GetDebugIdentifier(stream));
+              JsonStream_Release(stream);
+              free(data);
+              return 0;
+            }
+          }
+          else
+          {
+            DIAGNOSTIC_FONT_ERROR4("Unexpected/invalid \"characters\" key \"", propName, "\" (must be single character) in ", JsonStream_GetDebugIdentifier(stream));
+            JsonStream_Release(stream);
+            free(data);
+            return 0;
+          }
+        }
+        else if (strcmp("bitmapFileName", propName) == 0)
+        {
+          if (wBitmapFileName != 0)
+          {
+            // TODO: fail because already got one
+          }
+          else if (JsonStream_MoveNext(stream) != JsonStreamString || 0 == (bitmapFileName = JsonStream_GetString(stream, &bitmapFileNameLength)))
+          {
+            // TODO: fail because reasons
+          }
+          else
+          {
+            // copy the bitmapFileName
+            wBitmapFileName = malloc(sizeof(wchar_t) * (bitmapFileNameLength + 1));
+            if (wBitmapFileName == 0)
+            {
+              // TODO: fail beause cry a river
+            }
+            else
+            {
+              for (int i = 0; i <= bitmapFileNameLength; i++)
+              {
+                wBitmapFileName[i] = bitmapFileName[i];
+              }
+            }
+          }
+        }
+        else if (strcmp("characters", propName) == 0)
+        {
+          inCharacterMap = 1;
+        }
+        break;
+
       case JsonStreamObjectEnd:
         if (inCharacterMap)
         {
           inCharacterMap = 0;
         }
-      case JsonStreamArrayStart,
-      case JsonStreamArrayEnd,
-      case JsonStreamPropertyName:
-        if (strcmp("characters", JsonStream_GetString(stream, 0)) == 0)
-        {
-          inCharacterMap = 1;
-        }
-        else if (inCharacterMap)
-        {
-          
-        }
-      case JsonStreamString,
-      case JsonStreamNumber,
-      case JsonStreamTrue,
-      case JsonStreamFalse,
-      case JsonStreamNull
-      
+        break;
     }
   }
+  
+    
   
   int32_t fileSize;
   char* jsonData = ResourceFile_Load(fileName, &fileSize);

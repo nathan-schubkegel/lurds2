@@ -113,6 +113,17 @@ JsonStream JsonStream_LoadFromResourceFile(const wchar_t * fileName)
   return data;
 }
 
+const char* JsonStream_GetDebugIdentifier(JsonStream stream)
+{
+  JsonStreamData* data = (JsonStreamData*)stream;
+  if (data == 0)
+  {
+    DIAGNOSTIC_JSON_ERROR("invalid null stream arg");
+    return 0;
+  }
+  return data->identifierForDebugMessages;
+}
+
 static void ConsumeCommentsCommasAndWhitespace(JsonStreamData* data)
 {
   while (data->current < data->end)

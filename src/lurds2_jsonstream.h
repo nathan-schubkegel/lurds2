@@ -29,6 +29,7 @@ typedef void* JsonStream;
 JsonStream           JsonStream_Parse(const char* jsonData, const char* debugIdentifier);
 JsonStream           JsonStream_LoadFromResourceFile(const wchar_t * fileName);
 void                 JsonStream_Release(JsonStream stream);
+const char*          JsonStream_GetDebugIdentifier(JsonStream stream);
 
 JsonStreamTokenType  JsonStream_MoveNext(JsonStream stream);
 JsonStreamTokenType  JsonStream_GetTokenType(JsonStream stream);
