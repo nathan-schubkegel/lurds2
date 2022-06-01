@@ -7,24 +7,22 @@ Please refer to <http://unlicense.org/>
 #ifndef LURDS2_FONT
 #define LURDS2_FONT
 
-typedef struct FontCharacter {
-  int xOrigin; // The 0-based index of the x-coordinate where the left of the letter starts
-  int yOrigin; // The 0-based index of the y-coordinate where the baseline of the letter starts. (baseline = bottom of a, middle of g)
-  int width;   // The width of the letter
-  int heightUp; // The number of pixels up from yOrigin
-  int heightDown; // The number of pixels down from yOrigin
-} FontCharacter;
-
 typedef void* Font;
 
-// A Font holds the bitmap data for MS Paint image loaded from file.
-Font  Font_LoadFromResourceFile(const wchar_t * fileName);
-void  Bmp_Draw(Bmp bmp);
-void  Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height);
-void  Font_Release(Bmp bmp);
+typedef struct FontMeasurement
+{
+  int32_t width;
+  int32_t height;
+} FontMeasurement;
 
+// A Font holds all data loaded from resource files needed to render text to an opengl surface
+Font Font_LoadFromResourceFile(const wchar_t * fileName);
+void Font_Release(Font font);
 
+FontMeasurement Font_MeasureSingleLine(Font font, const char * text);
+FontMeasurement Font_RenderSingleLine(Font font, const char * text);
 
-
+FontMeasurement Font_MeasureLinesConstrainedByWidth(Font font, const char * text, int32_t width);
+FontMeasurement Font_RenderLinesConstrainedByWidth(Font font, const char * text, int32_t width);
 
 #endif

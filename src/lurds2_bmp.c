@@ -10,10 +10,10 @@ Please refer to <http://unlicense.org/>
 #include <wingdi.h>
 #include <GL/GL.h>
 
-#define DIAGNOSTIC_BMP_ERROR(message) DIAGNOSTIC_ERROR(message);
-#define DIAGNOSTIC_BMP_ERROR2(m1, m2) DIAGNOSTIC_ERROR2((m1), (m2));
-#define DIAGNOSTIC_BMP_ERROR3(m1, m2, m3) DIAGNOSTIC_ERROR3((m1), (m2), (m3));
-#define DIAGNOSTIC_BMP_ERROR4(m1, m2, m3, m4) DIAGNOSTIC_ERROR4((m1), (m2), (m3), (m4));
+#define DIAGNOSTIC_BMP_ERROR(message) DIAGNOSTIC_ERROR(message)
+#define DIAGNOSTIC_BMP_ERROR2(m1, m2) DIAGNOSTIC_ERROR2((m1), (m2))
+#define DIAGNOSTIC_BMP_ERROR3(m1, m2, m3) DIAGNOSTIC_ERROR3((m1), (m2), (m3))
+#define DIAGNOSTIC_BMP_ERROR4(m1, m2, m3, m4) DIAGNOSTIC_ERROR4((m1), (m2), (m3), (m4))
 
 typedef struct __attribute__((packed)) BmpHeader {
   unsigned char bm[2]; // Contains "BM"
