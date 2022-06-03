@@ -1,5 +1,6 @@
 {
-  "bitmapFileName": "old_timey_font.bmp",
+  "bitmapFileName": "res\\old_timey_font.bmp",
+  "universalHeightUp": 19,
   "characters": {
     // The elements of each array item are interpreted as follows:
     // 0: int xOrigin; // The 0-based index of the x-coordinate where the left of the letter starts

@@ -16,6 +16,8 @@ Please refer to <http://unlicense.org/>
 #include "lurds2_bmp.c"
 #include "lurds2_jsonstream.c"
 #include "lurds2_stack.c"
+#include "lurds2_stringutils.c"
+#include "lurds2_font.c"
 
 #define VK_PAGEUP VK_PRIOR
 #define VK_PAGEDOWN VK_NEXT
@@ -31,6 +33,7 @@ static SoundBuffer mainWindowSoundBuffer = 0;
 static HDC mainWindowHdc;
 static HGLRC mainWindowGlrc;
 static Bmp mainWindowBitmap;
+static Font oldTimeyFont;
 static int mainWindowPaintCount;
 static RECT mainWindowLastPaintSize;
 static int mainWindowBitmapSlice_which;
@@ -172,6 +175,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1350, "Focus", 50, 300, 35);
   CreateButton(mainWindowHandle, 1351, "StackTests", 85, 350, 35);
   CreateButton(mainWindowHandle, 1352, "JsonTests", 75, 10, 65);
+  CreateButton(mainWindowHandle, 1353, "FontTests", 75, 85, 65);
   
   mainWindowFullScreen = 0;
 
@@ -482,6 +486,15 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
             JsonStream_Release(s);
 
             MessageBox(0, "json tested ok i guess", 0, 0);
+          }
+          break;
+          
+          case 1353:
+          {
+            if (oldTimeyFont != 0) Font_Release(oldTimeyFont);
+            oldTimeyFont = Font_LoadFromResourceFile(L"res\\old_timey_font.json");
+            if (oldTimeyFont == 0) { DIAGNOSTIC_ERROR("no fonts 4 u"); break; }
+            InvalidateRect(hwnd, 0, 1);
           }
           break;
 
@@ -869,6 +882,34 @@ static void DrawSomeGl(HWND hwnd)
         glVertex2f(10.0f, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight);
         glVertex2f(0.0f, mainWindowBitmapSlice_yAboveOriginHeight + mainWindowBitmapSlice_yBelowOriginHeight);
     glEnd();
+    glPopMatrix();
+  }
+  
+  if (oldTimeyFont)
+  {
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    glTranslated(10, 130, 0);
+    
+    glScaled(2, 2, 1);
+    FontMeasurement m = Font_RenderSingleLine(oldTimeyFont, "The quick brown fox trips over the zarking lazy dog. Ha!");
+    
+    // give an indication of which are the "upper" and "lower" portions
+    glTranslated(-10, 0, 0);
+    glBegin( GL_QUADS );
+        glColor3f(0.0f, 1.0f, 0.0f); // green
+        glVertex2f(0.0f, 0.0f);
+        glVertex2f(10.0f, 0.0f);
+        glVertex2f(10.0f, m.universalLineHeight);
+        glVertex2f(0.0f, m.universalLineHeight);
+        glColor3f(1.0f, 0.0f, 0.0f); // red
+        glVertex2f(0.0f, m.universalLineHeight);
+        glVertex2f(10.0f, m.universalLineHeight);
+        glVertex2f(10.0f, m.universalLineHeight + 1);//m.heightDown);
+        glVertex2f(0.0f, m.universalLineHeight + 1);//m.heightDown);
+    glEnd();
+    
     glPopMatrix();
   }
   

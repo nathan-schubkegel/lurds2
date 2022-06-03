@@ -9,6 +9,7 @@ Please refer to <http://unlicense.org/>
 #include <Windows.h>
 #include <stdio.h>
 #include "lurds2_errors.h"
+#include "lurds2_stringutils.h"
 #include <wchar.h>
 
 #define DIAGNOSTIC_RESOURCE_ERROR(message) DIAGNOSTIC_ERROR(message);
@@ -118,7 +119,9 @@ void* ResourceFile_Load(const wchar_t* fileName, int* fileSize)
   h = CreateFileW(filePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
   if (h == INVALID_HANDLE_VALUE)
   {
-    DIAGNOSTIC_RESOURCE_ERROR2("CreateFileW(): ", GetLastErrorMessage());
+    char* nFilePath = StringUtils_MakeNarrowString(filePath);
+    DIAGNOSTIC_RESOURCE_ERROR4("CreateFileW(): ", GetLastErrorMessage(), " ", nFilePath);
+    free(nFilePath);
     goto error;
   }
 
