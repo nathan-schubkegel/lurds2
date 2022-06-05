@@ -350,6 +350,7 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
           {
             if (mainWindowBitmap) Bmp_Release(mainWindowBitmap);
             mainWindowBitmap = Bmp_LoadFromResourceFile(L"res\\old_timey_font.bmp");
+            Bmp_SetPixelPerfect(mainWindowBitmap, 1);
             if (mainWindowBitmap == 0) break;
             InvalidateRect(hwnd, 0, 1);
             SetFocus(hwnd);

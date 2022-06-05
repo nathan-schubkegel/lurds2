@@ -62,6 +62,7 @@ typedef struct BmpData {
   int width; // in pixels
   int height; // in pixels
   unsigned int glTextureId;
+  int pixelPerfect;
 } BmpData;
 
 static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data, int length);
@@ -265,15 +266,22 @@ static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data, int length)
     bitmap->glTextureId = 0;
     return 0;
   }
-  
-  // I'm grumpy I need to provide these for the bitmap to show up, but whatev okay --nathschu
-  // (what are the defaults if not "something that makes the texture appear"?)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  
+
   glBindTexture(GL_TEXTURE_2D, 0);
   
   return 1;
+}
+
+void Bmp_SetPixelPerfect(Bmp bmp, int newValue)
+{
+  BmpData* bitmap = (BmpData*)bmp;
+
+  if (!bitmap) {
+    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
+    return;
+  }
+
+  bitmap->pixelPerfect = newValue;
 }
 
 void Bmp_Draw(Bmp bmp)
@@ -293,6 +301,12 @@ void Bmp_Draw(Bmp bmp)
   
   glEnable(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, bitmap->glTextureId);
+
+  // I'm grumpy I need to provide these for the bitmap to show up, but whatev okay --nathschu
+  // (what are the defaults if not "something that makes the texture appear"?)
+  int paramValue = bitmap->pixelPerfect ? GL_NEAREST : GL_LINEAR;
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, paramValue);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, paramValue);
   
   int oldTexEnv;
   glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &oldTexEnv);
@@ -334,6 +348,12 @@ void Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height)
   
   glEnable(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, bitmap->glTextureId);
+
+  // I'm grumpy I need to provide these for the bitmap to show up, but whatev okay --nathschu
+  // (what are the defaults if not "something that makes the texture appear"?)
+  int paramValue = bitmap->pixelPerfect ? GL_NEAREST : GL_LINEAR;
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, paramValue);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, paramValue);
 
   int oldTexEnv;
   glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &oldTexEnv);
