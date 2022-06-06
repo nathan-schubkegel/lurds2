@@ -11,6 +11,9 @@ typedef void* Bmp;
 
 // A Bmp holds the bitmap data for MS Paint image loaded from file.
 Bmp   Bmp_LoadFromResourceFile(const wchar_t * fileName);
+// a Masking Bitmap interprets pure white as "transparent" and interprets all other colors as pure white
+// so color can be added at render time, or it can be used to make a stencil
+Bmp   Bmp_LoadMaskingBitmapFromResourceFile(const wchar_t * fileName);
 void  Bmp_SetPixelPerfect(Bmp bmp, int newValue); // 1 to render using GL_NEAREST, 0 to render using GL_LINEAR (blend of 4 nearest pixels)
 void  Bmp_Draw(Bmp bmp);
 void  Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height);

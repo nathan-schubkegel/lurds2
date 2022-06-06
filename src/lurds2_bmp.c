@@ -65,9 +65,9 @@ typedef struct BmpData {
   int pixelPerfect;
 } BmpData;
 
-static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data, int length);
+static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data);
 
-Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
+static Bmp Bmp_LoadFromResourceFile_Internal(const wchar_t * fileName, int isMaskingBitmap)
 {
   BmpData* bmp;
   bmp = malloc(sizeof(BmpData));
@@ -79,22 +79,22 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
   memset(bmp, 0, sizeof(BmpData));
 
   BmpHeader* data = 0;
-  int length = 0;
+  int fileLength = 0;
 
-  data = (BmpHeader*)ResourceFile_Load(fileName, &length);
+  data = (BmpHeader*)ResourceFile_Load(fileName, &fileLength);
   if (data == 0) goto error;
 
-  if (length < sizeof(BmpHeader)) {
+  if (fileLength < sizeof(BmpHeader)) {
     DIAGNOSTIC_BMP_ERROR("unexpected too-small size of bmp file");
     goto error;
   }
 
-  if (data->fileSize != length) {
+  if (data->fileSize != fileLength) {
     DIAGNOSTIC_BMP_ERROR("bmp header fileSize != actual bmp file size");
     goto error;
   }
 
-  if (data->pixelDataOffset > length) {
+  if (data->pixelDataOffset > fileLength) {
     DIAGNOSTIC_BMP_ERROR("bmp header pixelDataOffset too large");
     goto error;
   }
@@ -151,20 +151,20 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
 
   int rowStride;
   rowStride = LURDS2_BMP_PIXEL_ROW_STRIDE(data->infoHeader);
-  if (data->pixelDataOffset + rowStride * data->infoHeader.biHeight > length) {
+  if (data->pixelDataOffset + rowStride * data->infoHeader.biHeight > fileLength) {
     DIAGNOSTIC_BMP_ERROR("bmp file is not long enough to hold advertised pixel data");
     goto error;
   }
-  
+
   // bitmaps store pixels in order Blue-Green-Red
   // but opengl needs Red-Green-Blue, so swap them
   char* start = (char*)data + data->pixelDataOffset;
   int rowCount = data->infoHeader.biHeight;
+  int columnCount = data->infoHeader.biWidth;
   int bytesPerElement = data->infoHeader.biBitCount / 8;
   for (int row = 0; row < rowCount; row++)
   {
     char* rowStart = start + row * rowStride;
-    int columnCount = data->infoHeader.biWidth;
     for (int column = 0; column < columnCount; column++)
     {
       char* c = rowStart + column * bytesPerElement;
@@ -173,7 +173,48 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
       c[2] = t;
     }
   }
-  
+
+  // bitmaps are 24-bit RGB but I want 32-bit RGBA so I can fake in my own transparency
+  // so relloc and shift the bytes
+  int oldBytesPerElement = bytesPerElement; // 3
+  bytesPerElement += 1;
+  int oldRowStride = rowStride; // biWidth * 3 plus some alignment fudging;
+  rowStride = data->infoHeader.biWidth * bytesPerElement;
+  fileLength = fileLength + (rowStride * rowCount) - (oldRowStride * rowCount);
+  void* newData = realloc(data, fileLength);
+  if (newData == 0) {
+    DIAGNOSTIC_BMP_ERROR("failed to reallocate for RGB to RGBA expansion");
+    goto error;
+  }
+  data = newData;
+  start = (char*)data + data->pixelDataOffset;
+  for (int row = rowCount - 1; row >= 0; row--)
+  {
+    char* oldRowStart = start + row * oldRowStride;
+    char* rowStart = start + row * rowStride;
+    for (int column = columnCount - 1; columnCount >= 0; columnCount--)
+    {
+      char* oldPixel = oldRowStart + column * oldBytesPerElement;
+      char* newPixel = rowStart + column * bytesPerElement;
+      newPixel[0] = oldPixel[0];
+      newPixel[1] = oldPixel[1];
+      newPixel[2] = oldPixel[2];
+      newPixel[3] = 255; // make it opaque
+      if (isMaskingBitmap)
+      {
+        // is the pixel pure white?
+        if (*newPixel == 0xFFFFFFFF)
+        {
+          ((uint8_t*)newPixel)[3] = 0; // make it transparent
+        }
+        else // interpret all other colors as pure white
+        {
+          *newPixel = 0xFFFFFFFF;
+        }
+      }
+    }
+  }
+
   // bitmaps store pixel data "last row first"
   // but I want the "top row first" because that helps my opengl commands make sense without melting the mind
   // so swap them
@@ -198,7 +239,7 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
   bmp->width = data->infoHeader.biWidth;
   bmp->height = data->infoHeader.biHeight;
   
-  if (!Bmp_LoadToOpenGLTexture(bmp, data, length))
+  if (!Bmp_LoadToOpenGLTexture(bmp, data))
   {
     goto error;
   }
@@ -227,7 +268,17 @@ void Bmp_Release(Bmp bmp)
   free(bitmap);
 }
 
-static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data, int length)
+Bmp Bmp_LoadMaskingBitmapFromResourceFile(const wchar_t * fileName)
+{
+  return Bmp_LoadFromResourceFile_Internal(fileName, 1);
+}
+
+Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
+{
+  return Bmp_LoadFromResourceFile_Internal(fileName, 0);
+}
+
+static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data)
 {
   // TODO: use gluErrorString() in this method, from glu32.dll and glu32.lib
   glGetError(); // clear error flag
@@ -255,7 +306,7 @@ static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data, int length)
     data->infoHeader.biWidth,
     data->infoHeader.biHeight,
     0, // border
-    GL_RGB, // format
+    GL_RGBA, // format of the passed-in data
     GL_UNSIGNED_BYTE, // type
     (char*)data + data->pixelDataOffset);
 
