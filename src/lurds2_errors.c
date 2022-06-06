@@ -36,22 +36,6 @@ char* GetLastErrorMessage()
   return buffer;
 }
 
-char* CopyWstrToCstr(const wchar_t* input)
-{
-  if (!input) return 0; 
-  int len;
-  len = wcslen(input);
-  char* result;
-  result = malloc(len + 1);
-  if (!result) return 0;
-  int i;
-  for (i = 0; i <= len; i++)
-  {
-    result[i] = (char)input[i];
-  }
-  return result;
-}
-
 static DWORD WINAPI ShowFatalErrorThenKillProcessProc(LPVOID lpParameter)
 {
   MessageBox(0, (char*)lpParameter, "lurds2 fatal error", 0);
@@ -143,4 +127,30 @@ void ShowDiagnosticError2(const char* file, const char* function, int line, cons
 void ShowDiagnosticError(const char* file, const char* function, int line, const char* message)
 {
   ShowDiagnosticError4(file, function, line, message, 0, 0, 0);
+}
+
+void DebugShowInteger(const char* file, const char* function, int line, const char* message, int value)
+{
+  char buffer[ERROR_MESSAGE_BUFFER_SIZE];
+  memset(buffer, 0, sizeof(buffer));
+
+  strncat(buffer, "at line ", sizeof(buffer) - strlen(buffer) - 1);
+  sprintf(&buffer[strlen(buffer)], "%d", line);
+  strncat(buffer, " of ", sizeof(buffer) - strlen(buffer) - 1);
+  strncat(buffer, function, sizeof(buffer) - strlen(buffer) - 1);
+  strncat(buffer, "() in ", sizeof(buffer) - strlen(buffer) - 1);
+  strncat(buffer, file, sizeof(buffer) - strlen(buffer) - 1);
+  strncat(buffer, "\r\n\r\n", sizeof(buffer) - strlen(buffer) - 1);
+
+  if (message) strncat(buffer, message, sizeof(buffer) - strlen(buffer) - 1);
+  char numBuffer[50];
+  sprintf(numBuffer, "%d", value);
+  strncat(buffer, numBuffer, sizeof(buffer) - strlen(numBuffer) - 1);
+
+  HANDLE t;
+  t = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ShowDiagnosticErrorProc, buffer, 0, 0);
+  if (t != 0)
+  {
+    WaitForSingleObject(t, INFINITE);
+  }
 }

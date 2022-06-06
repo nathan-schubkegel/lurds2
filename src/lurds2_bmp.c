@@ -192,7 +192,7 @@ static Bmp Bmp_LoadFromResourceFile_Internal(const wchar_t * fileName, int isMas
   {
     char* oldRowStart = start + row * oldRowStride;
     char* rowStart = start + row * rowStride;
-    for (int column = columnCount - 1; columnCount >= 0; columnCount--)
+    for (int column = columnCount - 1; column >= 0; column--)
     {
       char* oldPixel = oldRowStart + column * oldBytesPerElement;
       char* newPixel = rowStart + column * bytesPerElement;

@@ -10,6 +10,7 @@ Please refer to <http://unlicense.org/>
 #include "lauxlib.h"
 #include "lualib.h"
 #include "lurds2_errors.h"
+#include "lurds2_stringutils.h"
 
 #define DIAGNOSTIC_LUA_ERROR(message) DIAGNOSTIC_ERROR(message);
 #define DIAGNOSTIC_LUA_ERROR2(message, m2) DIAGNOSTIC_ERROR2((message), (m2));
@@ -198,8 +199,8 @@ void MyLoadAndRunLuaFile(lua_State* luaState, const wchar_t* luaFileName)
   int luaFileDataLength;
   int loadResult;
   
-  cLuaFileName = CopyWstrToCstr(luaFileName);
 
+  cLuaFileName = StringUtils_MakeNarrowString(luaFileName);
   // get the file data
   luaFileData = ResourceFile_Load(luaFileName, &luaFileDataLength);
   if (luaFileData == 0) FATAL_LUA_ERROR2("Failed to load LUA file: ", cLuaFileName);

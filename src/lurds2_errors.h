@@ -19,8 +19,9 @@ Please refer to <http://unlicense.org/>
 #define FATAL_ERROR3(e1, e2, e3) ShowFatalErrorThenKillProcess3(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3))
 #define FATAL_ERROR4(e1, e2, e3, e4) ShowFatalErrorThenKillProcess4(__FILE__, __FUNCTION__, __LINE__, (e1), (e2), (e3), (e4))
 
+#define DEBUG_SHOW_INTEGER(message, value) DebugShowInteger(__FILE__, __FUNCTION__, __LINE__, (message), (value))
+
 char* GetLastErrorMessage();
-char* CopyWstrToCstr(const wchar_t* input);
 void ShowFatalErrorThenKillProcess(const char* file, const char* function, int line, const char* message);
 void ShowFatalErrorThenKillProcess2(const char* file, const char* function, int line, const char* message, const char* message2);
 void ShowFatalErrorThenKillProcess3(const char* file, const char* function, int line, const char* message, const char* message2, const char* message3);
@@ -29,5 +30,6 @@ void ShowDiagnosticError(const char* file, const char* function, int line, const
 void ShowDiagnosticError2(const char* file, const char* function, int line, const char* message, const char* message2);
 void ShowDiagnosticError3(const char* file, const char* function, int line, const char* message, const char* message2, const char* message3);
 void ShowDiagnosticError4(const char* file, const char* function, int line, const char* message, const char* message2, const char* message3, const char* message4);
+void DebugShowInteger(const char* file, const char* function, int line, const char* message, int value);
 
 #endif
