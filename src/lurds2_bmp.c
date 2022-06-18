@@ -63,6 +63,7 @@ typedef struct BmpData {
   int height; // in pixels
   unsigned int glTextureId;
   int pixelPerfect;
+  int isMaskingBitmap;
 } BmpData;
 
 static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data);
@@ -205,11 +206,14 @@ static Bmp Bmp_LoadFromResourceFile_Internal(const wchar_t * fileName, int isMas
         // is the pixel pure white?
         if (*newPixel == 0xFFFFFFFF)
         {
-          ((uint8_t*)newPixel)[3] = 0; // make it transparent
+          // pick a color that does not render
+          *(DWORD*)newPixel = 0x00FFFFFF; // transparent white
         }
-        else // interpret all other colors as pure white
+        else // pick a color that is convenient to GL_MODULATE with later runtime-specified glColor4f()
         {
-          *newPixel = 0xFFFFFFFF;
+          // FUTURE: there's opportunity for neat specular effect here if we would let
+          // the bitmap's color data contribute to the GL_MODULATE
+          *(DWORD*)newPixel = 0xFFFFFFFF; // opaque white
         }
       }
     }
@@ -238,6 +242,7 @@ static Bmp Bmp_LoadFromResourceFile_Internal(const wchar_t * fileName, int isMas
 
   bmp->width = data->infoHeader.biWidth;
   bmp->height = data->infoHeader.biHeight;
+  bmp->isMaskingBitmap = isMaskingBitmap;
   
   if (!Bmp_LoadToOpenGLTexture(bmp, data))
   {
@@ -359,13 +364,25 @@ static BmpData* Bmp_DrawStart(Bmp bmp, int* oldTexEnv)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, paramValue);
 
   glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldTexEnv);
-  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, bitmap->isMaskingBitmap ? GL_MODULATE : GL_REPLACE);
+
+  // FUTURE: the texture environment color could contribute if we used GL_BLEND instead of GL_MODULATE
+  //GLfloat green[] = { 1.0f, 0.0f, 0.0f, 0.0f };
+  //glTexEnvfv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_COLOR, &green[0]);
+  
+  // NOTE: when isMaskingBitmap, callers are expected to specify glColor to pick text color and transparency
+  //glColor4f(0.0f, 1.0f, 0.0f, 0.5f); // green
+  
+  // openGL doesn't respect alpha until blending is enabled
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   return bitmap;
 }
 
 static void Bmp_DrawEnd(int* oldTexEnv)
 {
+  glDisable(GL_BLEND);
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, *oldTexEnv);
   glBindTexture(GL_TEXTURE_2D, 0);
   glDisable(GL_TEXTURE_2D);

@@ -894,6 +894,7 @@ static void DrawSomeGl(HWND hwnd)
     glTranslated(10, 130, 0);
     
     glScaled(2, 2, 1);
+    glColor4f(0.0f, 0.0f, 1.0f, 0.7f); // transparent blue
     FontMeasurement m = Font_RenderSingleLine(oldTimeyFont, "The quick brown fox trips over the zarking lazy dog. Ha!");
     
     // give an indication of which are the "upper" and "lower" portions

@@ -156,7 +156,7 @@ Font Font_LoadFromResourceFile(const wchar_t * fileName)
           }
           else
           {
-            data->bitmap = Bmp_LoadFromResourceFile(wBitmapFileName);
+            data->bitmap = Bmp_LoadMaskingBitmapFromResourceFile(wBitmapFileName);
             free(wBitmapFileName);
             if (data->bitmap == 0)
             {
