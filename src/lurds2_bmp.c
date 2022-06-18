@@ -335,21 +335,20 @@ void Bmp_SetPixelPerfect(Bmp bmp, int newValue)
   bitmap->pixelPerfect = newValue;
 }
 
-void Bmp_Draw(Bmp bmp)
+static BmpData* Bmp_DrawStart(Bmp bmp, int* oldTexEnv)
 {
-  BmpData* bitmap;
-  bitmap = (BmpData*)bmp;
+  BmpData* bitmap = (BmpData*)bmp;
 
   if (!bitmap) {
     DIAGNOSTIC_BMP_ERROR("bmp arg is null");
-    return;
+    return 0;
   }
 
   if (bitmap->glTextureId == 0) {
     DIAGNOSTIC_BMP_ERROR("bmp has not yet been loaded to opengl");
-    return;
+    return 0;
   }
-  
+
   glEnable(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, bitmap->glTextureId);
 
@@ -358,10 +357,25 @@ void Bmp_Draw(Bmp bmp)
   int paramValue = bitmap->pixelPerfect ? GL_NEAREST : GL_LINEAR;
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, paramValue);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, paramValue);
-  
-  int oldTexEnv;
-  glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &oldTexEnv);
+
+  glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldTexEnv);
   glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
+  return bitmap;
+}
+
+static void Bmp_DrawEnd(int* oldTexEnv)
+{
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, *oldTexEnv);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glDisable(GL_TEXTURE_2D);
+}
+
+void Bmp_Draw(Bmp bmp)
+{
+  int oldTexEnv;
+  BmpData* bitmap = Bmp_DrawStart(bmp, &oldTexEnv);
+  if (bitmap == 0) return;
 
   glBegin(GL_QUADS);
     glTexCoord2d(0, 0);
@@ -377,38 +391,14 @@ void Bmp_Draw(Bmp bmp)
     glVertex2d(0, bitmap->height);
   glEnd();
 
-  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldTexEnv);
-  glBindTexture(GL_TEXTURE_2D, 0);
-  glDisable(GL_TEXTURE_2D);
+  Bmp_DrawEnd(&oldTexEnv);
 }
 
 void Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height)
 {
-  BmpData* bitmap;
-  bitmap = (BmpData*)bmp;
-
-  if (!bitmap) {
-    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
-    return;
-  }
-
-  if (bitmap->glTextureId == 0) {
-    DIAGNOSTIC_BMP_ERROR("bmp has not yet been loaded to opengl");
-    return;
-  }
-  
-  glEnable(GL_TEXTURE_2D);
-  glBindTexture(GL_TEXTURE_2D, bitmap->glTextureId);
-
-  // I'm grumpy I need to provide these for the bitmap to show up, but whatev okay --nathschu
-  // (what are the defaults if not "something that makes the texture appear"?)
-  int paramValue = bitmap->pixelPerfect ? GL_NEAREST : GL_LINEAR;
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, paramValue);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, paramValue);
-
   int oldTexEnv;
-  glGetTexEnviv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, &oldTexEnv);
-  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+  BmpData* bitmap = Bmp_DrawStart(bmp, &oldTexEnv);
+  if (bitmap == 0) return;
 
   glBegin(GL_QUADS);
     float u = (float)x / (float)bitmap->width;
@@ -429,7 +419,5 @@ void Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height)
     glVertex2d(0, height);
   glEnd();
 
-  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, oldTexEnv);
-  glBindTexture(GL_TEXTURE_2D, 0);
-  glDisable(GL_TEXTURE_2D);
+  Bmp_DrawEnd(&oldTexEnv);
 }
