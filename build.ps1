@@ -1,10 +1,21 @@
 param (
-  [switch]$run = $false
-)
+  [switch]$run = $false,
+  [switch]$test = $false,
+  [switch]$publish = $false,
+  [switch]$clean = $false)
 
 $ErrorActionPreference = "Stop"
 
 Set-Location -Path $PSScriptRoot
+
+if ($clean) {
+  Write-Host "Removing build folders..."
+  Remove-Item "lua-5.4.2" -Recurse -ErrorAction Ignore 
+  Remove-Item "obj" -Recurse -ErrorAction Ignore 
+  Remove-Item "publish" -Recurse -ErrorAction Ignore 
+  Remove-Item "tcc" -Recurse -ErrorAction Ignore 
+  exit 0
+}
 
 if (-not (Test-Path -Path "tcc\tcc.exe")) {
   Write-Host "Extracting tcc"
@@ -45,11 +56,34 @@ if (-not (Test-Path -Path "obj\lua.o")) {
   if (-not $?) { exit 1 }
 }
 
-Write-Host "Compiling lurds2.exe"
-& tcc\tcc.exe -g -lwinmm -lopengl32 -o lurds2.exe src\lurds2_main.c obj\lua.o "-Ilua-5.4.2\src"
-if (-not $?) { exit 1 }
+if ($test) {
+  Write-Host "Compiling lurds2_testApp.exe"
+  & tcc\tcc.exe -g -lwinmm -lopengl32 -o lurds2_testApp.exe src\lurds2_testApp.c obj\lua.o "-Ilua-5.4.2\src"
+  if (-not $?) { exit 1 }
 
-if ($run) {
-  Write-Host "Running lurds2.exe"
-  & .\lurds2.exe
+  Write-Host "Running lurds2_testApp.exe"
+  & .\lurds2_testApp.exe
+}
+else {
+  # delete old publish directory first, so there's some time between deleting it and recreating it (because delete is async)
+  if ($publish) {
+    Write-Host "Removing old 'publish' directory"
+    Remove-Item "publish" -Recurse -ErrorAction Ignore 
+  }
+
+  Write-Host "Compiling lurds2.exe"
+  & tcc\tcc.exe -g -lwinmm -lopengl32 -o lurds2.exe src\lurds2_main.c obj\lua.o "-Ilua-5.4.2\src"
+  if (-not $?) { exit 1 }
+
+  if ($run) {
+    Write-Host "Running lurds2.exe"
+    & .\lurds2.exe
+  }
+  
+  if ($publish) {
+    Write-Host "Copying files to 'publish' directory"
+    $unused = [System.IO.Directory]::CreateDirectory("publish")
+    Copy-Item -LiteralPath "lurds2.exe" -Destination "publish"
+    Copy-Item -LiteralPath "res" -Destination "publish" -Recurse
+  }
 }

@@ -2,6 +2,8 @@ obj/
 tcc/
 lua-5.4.2/
 stuff/
+publish/
 /lurds2.exe
+/lurds2_testApp.exe
 *.bak
 *.orig

@@ -1,4 +1,4 @@
-Lurds of the Rolm 2
+Lurds of the Room 2
 =================
 
 About
@@ -8,15 +8,19 @@ This is a project to clone Lords of the Realm 2, a 1995 game produced by Sierra 
 Prime Goals:
 * Multiplayer network support. (It's only fun to play if you can play with your friends!)
 * ANSI C. (It's only fun to develop if you must write it from the ground up!)
-* Leverage original resources from Lords of the Realm 2. (It's only Lords of the Realm 2 if it looks like Lords of the Realm 2!)
+* Also Lua. (C is for systems work - I really want something higher level for business logic)
+* Leverage original resources from Lords of the Realm 2. (It's only Lurds of the Room 2 if it looks like Lords of the Realm 2!)
 
-Building
+Development
 ---
-The project is built with TCC (Tiny C Compiler). Run build.bat in the root directory.
+The project is built with TCC (Tiny C Compiler).
+* Build: Invoke `build.bat` in the root directory.
+* Run: Invoke `build.bat -run` in the root directory.
+* Test: Invoke `build.bat -test` in the root directory. Currently the test app is a GUI application with exploratory/learning/example code demonstrating the various game engine features. Interpreting the results is human/manual. Sorry :)
 
-Testing
+Release
 ---
-Automated unit tests only. Run test.bat in the root directory.
+Invoke `build.bat -publish` in the root directory. The `publish` folder becomes populated with all files needed to distribute and play Lurds of the Room 2.
 
 Licensing
 ---

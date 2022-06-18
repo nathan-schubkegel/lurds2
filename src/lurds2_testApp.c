@@ -22,9 +22,9 @@ Please refer to <http://unlicense.org/>
 #define VK_PAGEUP VK_PRIOR
 #define VK_PAGEDOWN VK_NEXT
 
-static char mainWindowClassName[] = "LURDS2";
-static char mainWindowTitle[]   = "Lurds of the Room 2";
-static char mainWindowContent[] = "Welcome to Lurds of the Room 2";
+static char mainWindowClassName[] = "LURDS2_TEST";
+static char mainWindowTitle[]   = "Lurds of the Room 2 Test App";
+static char mainWindowContent[] = "Welcome to Lurds of the Room 2 Test App";
 static RECT lastMainWindowRectBeforeFullScreen;
 static int mainWindowFullScreen = 0;
 static HWND mainWindowHandle = 0;
