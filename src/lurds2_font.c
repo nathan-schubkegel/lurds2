@@ -269,7 +269,6 @@ static FontMeasurement Font_DoSingleLine(Font font, const char * text, int rende
 
     if (render)
     {
-      // TODO: need transparency tricks
       int heightBoost = data->universalHeightUp - c->heightUp;
       glTranslated(result.width, heightBoost, 0);
       Bmp_DrawPortion(data->bitmap, c->xOrigin, c->yOrigin - c->heightUp, c->width, c->heightUp + c->heightDown);
@@ -281,8 +280,6 @@ static FontMeasurement Font_DoSingleLine(Font font, const char * text, int rende
     }
 
     result.width += c->width;
-    //result.heightUp = result.heightUp > c->heightUp ? result.heightUp : c->heightUp;
-    //result.heightDown = result.heightDown > c->heightDown ? result.heightDown : c->heightDown;
 
     text++;
   }
@@ -301,12 +298,4 @@ FontMeasurement Font_MeasureSingleLine(Font font, const char * text)
 FontMeasurement Font_RenderSingleLine(Font font, const char * text)
 {
   return Font_DoSingleLine(font, text, 1);
-}
-
-FontMeasurement Font_MeasureLinesConstrainedByWidth(Font font, const char * text, int32_t width)
-{
-}
-
-FontMeasurement Font_RenderLinesConstrainedByWidth(Font font, const char * text, int32_t width)
-{
 }
