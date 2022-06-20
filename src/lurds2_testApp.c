@@ -992,20 +992,37 @@ static void DrawSomeGl(HWND hwnd)
   
   if (plateTestBitmapsOne)
   {
+    RECT windowRect;
+    GetWindowRect(hwnd, &windowRect);
+    int windowWidth = windowRect.right - windowRect.left;
+      
     int wNext = 10;
+    int hNext = 170;
+    int tallestInThisRow = 0;
     for (Bmp* it = plateTestBitmapsOne; *it != 0; it++)
     {
+      if (wNext + Bmp_GetWidth(*it) * 2 > windowWidth)
+      {
+        hNext += tallestInThisRow;
+        tallestInThisRow = 0;
+        wNext = 10;
+      }
+
       glMatrixMode(GL_MODELVIEW);
       glPushMatrix();
       glLoadIdentity();
-      glTranslated(wNext, 170, 0);
+      glTranslated(wNext, hNext, 0);
       
       glScaled(2, 2, 1);
       Bmp_Draw(*it);
 
       glPopMatrix();
       
-      wNext += 50;
+      wNext += Bmp_GetWidth(*it) * 2;
+      if (Bmp_GetHeight(*it) * 2 > tallestInThisRow)
+      {
+        tallestInThisRow = Bmp_GetHeight(*it) * 2;
+      }
     }
   }
   

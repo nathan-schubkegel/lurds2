@@ -18,6 +18,8 @@ Bmp   Bmp_LoadFromRgba(uint8_t* rgbaData, int width, int height);
 void  Bmp_SetPixelPerfect(Bmp bmp, int newValue); // 1 to render using GL_NEAREST, 0 to render using GL_LINEAR (blend of 4 nearest pixels)
 void  Bmp_Draw(Bmp bmp);
 void  Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height);
+int   Bmp_GetWidth(Bmp bmp);
+int   Bmp_GetHeight(Bmp bmp);
 void  Bmp_Release(Bmp bmp);
 
 #endif

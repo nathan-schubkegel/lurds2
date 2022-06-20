@@ -472,3 +472,27 @@ void Bmp_DrawPortion(Bmp bmp, int x, int y, int width, int height)
 
   Bmp_DrawEnd(&oldTexEnv);
 }
+
+int Bmp_GetWidth(Bmp bmp)
+{
+  BmpData* bitmap = (BmpData*)bmp;
+
+  if (!bitmap) {
+    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
+    return 0;
+  }
+  
+  return bitmap->width;
+}
+
+int Bmp_GetHeight(Bmp bmp)
+{
+  BmpData* bitmap = (BmpData*)bmp;
+
+  if (!bitmap) {
+    DIAGNOSTIC_BMP_ERROR("bmp arg is null");
+    return 0;
+  }
+  
+  return bitmap->height;
+}
