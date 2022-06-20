@@ -10,7 +10,9 @@ Please refer to <http://unlicense.org/>
 // returns 0 on failure
 // returns number of characters now used in 'buffer' on success
 int ResourceFile_GetPath(wchar_t* buffer, int bufferSize, const wchar_t* fileName);
+int ResourceFile_GetLords2FilePath(wchar_t* buffer, int bufferSize, const wchar_t * fileName);
 
 void* ResourceFile_Load(const wchar_t* fileName, int* fileSize);
+void* ResourceFile_LoadLords2File(const wchar_t* fileName, int* fileSize);
 
 #endif

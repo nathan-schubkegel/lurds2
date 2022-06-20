@@ -18,6 +18,7 @@ Please refer to <http://unlicense.org/>
 #include "lurds2_stack.c"
 #include "lurds2_stringutils.c"
 #include "lurds2_font.c"
+#include "lurds2_plate.c"
 
 #define VK_PAGEUP VK_PRIOR
 #define VK_PAGEDOWN VK_NEXT
@@ -34,6 +35,7 @@ static HDC mainWindowHdc;
 static HGLRC mainWindowGlrc;
 static Bmp mainWindowBitmap;
 static Font oldTimeyFont;
+static Bmp* plateTestBitmapsOne;
 static int mainWindowPaintCount;
 static RECT mainWindowLastPaintSize;
 static int mainWindowBitmapSlice_which;
@@ -176,6 +178,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1351, "StackTests", 85, 350, 35);
   CreateButton(mainWindowHandle, 1352, "JsonTests", 75, 10, 65);
   CreateButton(mainWindowHandle, 1353, "FontTests", 75, 85, 65);
+  CreateButton(mainWindowHandle, 1354, "PlateTests-1", 100, 160, 65);
   
   mainWindowFullScreen = 0;
 
@@ -349,7 +352,7 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
           case 1347:
           {
             if (mainWindowBitmap) Bmp_Release(mainWindowBitmap);
-            mainWindowBitmap = Bmp_LoadFromResourceFile(L"res\\old_timey_font.bmp");
+            mainWindowBitmap = Bmp_LoadFromResourceFile(L"old_timey_font.bmp");
             Bmp_SetPixelPerfect(mainWindowBitmap, 1);
             if (mainWindowBitmap == 0) break;
             InvalidateRect(hwnd, 0, 1);
@@ -493,8 +496,17 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
           case 1353:
           {
             if (oldTimeyFont != 0) Font_Release(oldTimeyFont);
-            oldTimeyFont = Font_LoadFromResourceFile(L"res\\old_timey_font.json");
+            oldTimeyFont = Font_LoadFromResourceFile(L"old_timey_font.json");
             if (oldTimeyFont == 0) { DIAGNOSTIC_ERROR("no fonts 4 u"); break; }
+            InvalidateRect(hwnd, 0, 1);
+          }
+          break;
+          
+          case 1354:
+          {
+            if (plateTestBitmapsOne != 0) Plate_Release(plateTestBitmapsOne);
+            plateTestBitmapsOne = Plate_LoadFromFile(PlateFileId_VILLAGE);
+            if (plateTestBitmapsOne == 0) { DIAGNOSTIC_ERROR("no plates 4 u"); break; }
             InvalidateRect(hwnd, 0, 1);
           }
           break;
@@ -913,6 +925,25 @@ static void DrawSomeGl(HWND hwnd)
     glEnd();
     
     glPopMatrix();
+  }
+  
+  if (plateTestBitmapsOne)
+  {
+    int wNext = 10;
+    for (Bmp* it = plateTestBitmapsOne; *it != 0; it++)
+    {
+      glMatrixMode(GL_MODELVIEW);
+      glPushMatrix();
+      glLoadIdentity();
+      glTranslated(wNext, 170, 0);
+      
+      glScaled(2, 2, 1);
+      Bmp_Draw(*it);
+
+      glPopMatrix();
+      
+      wNext += 50;
+    }
   }
   
   //Check for error

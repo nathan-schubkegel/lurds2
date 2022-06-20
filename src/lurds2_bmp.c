@@ -66,7 +66,7 @@ typedef struct BmpData {
   int isMaskingBitmap;
 } BmpData;
 
-static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data);
+static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, uint8_t* rgbaData);
 
 static Bmp Bmp_LoadFromResourceFile_Internal(const wchar_t * fileName, int isMaskingBitmap)
 {
@@ -243,8 +243,9 @@ static Bmp Bmp_LoadFromResourceFile_Internal(const wchar_t * fileName, int isMas
   bmp->width = data->infoHeader.biWidth;
   bmp->height = data->infoHeader.biHeight;
   bmp->isMaskingBitmap = isMaskingBitmap;
+  bmp->pixelPerfect = 1;
   
-  if (!Bmp_LoadToOpenGLTexture(bmp, data))
+  if (!Bmp_LoadToOpenGLTexture(bmp, (uint8_t*)data + data->pixelDataOffset))
   {
     goto error;
   }
@@ -256,6 +257,39 @@ error:
   if (data != 0) free(data);
   free(bmp);
   return 0;
+}
+
+Bmp Bmp_LoadFromRgba(uint8_t* rgbaData, int width, int height)
+{
+  if (rgbaData == 0) {
+    DIAGNOSTIC_BMP_ERROR("invalid null rgbaData param");
+    return 0;
+  }
+  
+  // aint nobody gonna make a bitmap 5000 pixels wide or tall
+  if (width <= 0 || height <= 0 || width >= 5000 || height >= 5000) {
+    DIAGNOSTIC_BMP_ERROR("invalid width or height param");
+    return 0;
+  }
+  
+  BmpData* bmp = malloc(sizeof(BmpData));
+  if (bmp == 0)
+  {
+    DIAGNOSTIC_BMP_ERROR("failed to allocate memory for BmpData");
+    return 0;
+  }
+  memset(bmp, 0, sizeof(BmpData));
+  bmp->width = width;
+  bmp->height = height;
+  bmp->pixelPerfect = 1;
+
+  if (!Bmp_LoadToOpenGLTexture(bmp, rgbaData))
+  {
+    free(bmp);
+    return 0;
+  }
+
+  return bmp;
 }
 
 void Bmp_Release(Bmp bmp)
@@ -283,7 +317,7 @@ Bmp Bmp_LoadFromResourceFile(const wchar_t * fileName)
   return Bmp_LoadFromResourceFile_Internal(fileName, 0);
 }
 
-static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data)
+static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, uint8_t* rgbaData)
 {
   // TODO: use gluErrorString() in this method, from glu32.dll and glu32.lib
   glGetError(); // clear error flag
@@ -308,12 +342,12 @@ static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, BmpHeader* data)
     GL_TEXTURE_2D, // target
     0, // level (has to do with mip mapping)
     GL_RGBA, // internalFormat
-    data->infoHeader.biWidth,
-    data->infoHeader.biHeight,
+    bitmap->width,
+    bitmap->height,
     0, // border
     GL_RGBA, // format of the passed-in data
     GL_UNSIGNED_BYTE, // type
-    (char*)data + data->pixelDataOffset);
+    rgbaData);
 
   if (glGetError() != NO_ERROR)
   {
