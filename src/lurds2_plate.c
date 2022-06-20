@@ -15,34 +15,6 @@ Please refer to <http://unlicense.org/>
 #define DIAGNOSTIC_PLATE_ERROR3(m1, m2, m3) DIAGNOSTIC_ERROR3((m1), (m2), (m3))
 #define DIAGNOSTIC_PLATE_ERROR4(m1, m2, m3, m4) DIAGNOSTIC_ERROR4((m1), (m2), (m3), (m4))
 
-typedef enum PaletteFileId {
-  PaletteFileId_T32_BAT1,
-  PaletteFileId_ARMITEMS,
-  PaletteFileId_ARMOURY,
-  PaletteFileId_BACKGRND,
-  PaletteFileId_BASE01,
-  PaletteFileId_SPRITE01,
-  PaletteFileId_CAS_BACK,
-  PaletteFileId_TREASURY,
-  PaletteFileId_CUSTOM,
-  PaletteFileId_LORDS2,
-  PaletteFileId_GRTNOBLE,
-  PaletteFileId_GATEWAY,
-  PaletteFileId_MERCHANT,
-  PaletteFileId_SKIRMISH,
-  PaletteFileId_SCORE1,
-  PaletteFileId_SCORE2,
-  PaletteFileId_SKIRCUST,
-  PaletteFileId_SPRITE1A,
-  PaletteFileId_START,
-  PaletteFileId_T32_STN1,
-  PaletteFileId_T32_STN2,
-  PaletteFileId_T32_STNA,
-  PaletteFileId_BASE1A,
-  
-  PaletteFileId_END, // not a real ID; used internally to validate IDs
-} PaletteFileId;
-
 typedef struct PaletteFile {
   PaletteFileId id;
   const wchar_t* fileName_w;
@@ -51,34 +23,58 @@ typedef struct PaletteFile {
 } PaletteFile;
 
 PaletteFile KnownPaletteFiles[] = {
-  { PaletteFileId_T32_BAT1, L"T32_BAT1.256", "T32_BAT1.256", 0 },
   { PaletteFileId_ARMITEMS, L"ARMITEMS.256", "ARMITEMS.256", 0 },
   { PaletteFileId_ARMOURY, L"ARMOURY.256", "ARMOURY.256", 0 },
   { PaletteFileId_BACKGRND, L"BACKGRND.256", "BACKGRND.256", 0 },
   { PaletteFileId_BASE01, L"BASE01.256", "BASE01.256", 0 },
-  { PaletteFileId_SPRITE01, L"SPRITE01.256", "SPRITE01.256", 0 },
+  { PaletteFileId_BASE1A, L"BASE1A.256", "BASE1A.256", 0 },
   { PaletteFileId_CAS_BACK, L"CAS_BACK.256", "CAS_BACK.256", 0 },
-  { PaletteFileId_TREASURY, L"TREASURY.256", "TREASURY.256", 0 },
+  { PaletteFileId_CASTLE1, L"CASTLE1.256", "CASTLE1.256", 0 },
   { PaletteFileId_CUSTOM, L"CUSTOM.256", "CUSTOM.256", 0 },
-  { PaletteFileId_LORDS2, L"LORDS2.256", "LORDS2.256", 0 },
-  { PaletteFileId_GRTNOBLE, L"GRTNOBLE.256", "GRTNOBLE.256", 0 },
+  { PaletteFileId_DEMO, L"DEMO.256", "DEMO.256", 0 },
+  { PaletteFileId_DEMO1, L"DEMO1.256", "DEMO1.256", 0 },
+  { PaletteFileId_DEMO2, L"DEMO2.256", "DEMO2.256", 0 },
   { PaletteFileId_GATEWAY, L"GATEWAY.256", "GATEWAY.256", 0 },
+  { PaletteFileId_GRTNOBLE, L"GRTNOBLE.256", "GRTNOBLE.256", 0 },
+  { PaletteFileId_LORDS2, L"LORDS2.256", "LORDS2.256", 0 },
   { PaletteFileId_MERCHANT, L"MERCHANT.256", "MERCHANT.256", 0 },
-  { PaletteFileId_SKIRMISH, L"SKIRMISH.256", "SKIRMISH.256", 0 },
+  { PaletteFileId_MISC_SEL, L"MISC_SEL.256", "MISC_SEL.256", 0 },
   { PaletteFileId_SCORE1, L"SCORE1.256", "SCORE1.256", 0 },
   { PaletteFileId_SCORE2, L"SCORE2.256", "SCORE2.256", 0 },
   { PaletteFileId_SKIRCUST, L"SKIRCUST.256", "SKIRCUST.256", 0 },
+  { PaletteFileId_SKIRMISH, L"SKIRMISH.256", "SKIRMISH.256", 0 },
+  { PaletteFileId_SPRITE01, L"SPRITE01.256", "SPRITE01.256", 0 },
   { PaletteFileId_SPRITE1A, L"SPRITE1A.256", "SPRITE1A.256", 0 },
   { PaletteFileId_START, L"START.256", "START.256", 0 },
+  { PaletteFileId_T32_BAT1, L"T32_BAT1.256", "T32_BAT1.256", 0 },
   { PaletteFileId_T32_STN1, L"T32_STN1.256", "T32_STN1.256", 0 },
-  { PaletteFileId_T32_STN2, L"T32_STN2.256", "T32_STN2.256", 0 },
-  { PaletteFileId_T32_STNA, L"T32_STNA.256", "T32_STNA.256", 0 },
-  { PaletteFileId_BASE1A, L"BASE1A.256", "BASE1A.256", 0 },
+  { PaletteFileId_TITLE, L"TITLE.256", "TITLE.256", 0 },
+  { PaletteFileId_TREASURY, L"TREASURY.256", "TREASURY.256", 0 },
 };
+
+const char* PaletteFile_GetName(PaletteFileId id)
+{
+  if (id < 0 || id >= PaletteFileId_END) {
+    DIAGNOSTIC_PLATE_ERROR("invalid palette file id");
+    return 0;
+  }
+  
+  return KnownPaletteFiles[id].fileName;
+}
+
+const wchar_t* PaletteFile_GetName_w(PaletteFileId id)
+{
+  if (id < 0 || id >= PaletteFileId_END) {
+    DIAGNOSTIC_PLATE_ERROR("invalid palette file id");
+    return 0;
+  }
+  
+  return KnownPaletteFiles[id].fileName_w;
+}
 
 static const uint8_t* GetPalette(PaletteFileId id)
 {
-  if (id <= 0 || id >= PaletteFileId_END) {
+  if (id < 0 || id >= PaletteFileId_END) {
     DIAGNOSTIC_PLATE_ERROR("invalid palette file id");
     return 0;
   }
@@ -312,8 +308,8 @@ static PlateTileDataTypeIndicator KnownPlateFiles[] = {
   { PlateFileId_T32_BAT, L"T32_BAT.PL8", "T32_BAT.PL8", PaletteFileId_T32_STN1, TileDataType_BMP },
   { PlateFileId_T32_BAT1, L"T32_BAT1.PL8", "T32_BAT1.PL8", PaletteFileId_T32_BAT1, TileDataType_BMP },
   { PlateFileId_T32_STN1, L"T32_STN1.PL8", "T32_STN1.PL8", PaletteFileId_T32_STN1, TileDataType_BMP },
-  { PlateFileId_T32_STN2, L"T32_STN2.PL8", "T32_STN2.PL8", PaletteFileId_T32_STN2, TileDataType_BMP },
-  { PlateFileId_T32_STNA, L"T32_STNA.PL8", "T32_STNA.PL8", PaletteFileId_T32_STNA, TileDataType_BMP },
+  { PlateFileId_T32_STN2, L"T32_STN2.PL8", "T32_STN2.PL8", PaletteFileId_T32_STN1, TileDataType_BMP },
+  { PlateFileId_T32_STNA, L"T32_STNA.PL8", "T32_STNA.PL8", PaletteFileId_T32_STN1, TileDataType_BMP },
   { PlateFileId_T32_WOD1, L"T32_WOD1.PL8", "T32_WOD1.PL8", PaletteFileId_T32_STN1, TileDataType_BMP },
   { PlateFileId_T32_WOD2, L"T32_WOD2.PL8", "T32_WOD2.PL8", PaletteFileId_T32_STN1, TileDataType_BMP },
   { PlateFileId_TOWN1A, L"TOWN1A.PL8", "TOWN1A.PL8", PaletteFileId_BASE1A, TileDataType_ISO },
@@ -380,11 +376,17 @@ typedef struct __attribute__((packed)) TileHeader {
   uint8_t unknown2; // always 0 except in FONT3C2.PL8 and FNTL2_22.PL8?
 } TileHeader;
 
-Bmp* Plate_LoadFromFile(PlateFileId id)
+Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPalette)
 {
   if (id < 0 || id >= PlateFileId_END)
   {
     DIAGNOSTIC_PLATE_ERROR("invalid plate file id");
+    return 0;
+  }
+  
+  if ((customPalette < 0 || customPalette >= PaletteFileId_END) && customPalette != PaletteFileId_NONE)
+  {
+    DIAGNOSTIC_PLATE_ERROR("invalid customPalette arg");
     return 0;
   }
 
@@ -442,7 +444,7 @@ Bmp* Plate_LoadFromFile(PlateFileId id)
           goto error;
         }
 
-        const uint8_t* palette = GetPalette(KnownPlateFiles[id].paletteFileId);
+        const uint8_t* palette = GetPalette(customPalette == PaletteFileId_NONE ? KnownPlateFiles[id].paletteFileId : customPalette);
         if (palette == 0) goto error;
         
         // allocate space for RGBA for each pixel
@@ -543,6 +545,11 @@ error:
     Plate_Release(bitmaps);
   }
   return 0;
+}
+
+Bmp* Plate_LoadFromFile(PlateFileId id)
+{
+  return Plate_LoadFromFileWithCustomPalette(id, PaletteFileId_NONE);
 }
 
 void Plate_Release(Bmp* bitmaps)

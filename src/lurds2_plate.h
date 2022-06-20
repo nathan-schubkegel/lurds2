@@ -259,9 +259,46 @@ typedef enum PlateFileId {
   PlateFileId_END, // not a real ID; used internally to validate IDs
 } PlateFileId;
 
+typedef enum PaletteFileId {
+  PaletteFileId_ARMITEMS,
+  PaletteFileId_ARMOURY,
+  PaletteFileId_BACKGRND,
+  PaletteFileId_BASE01,
+  PaletteFileId_BASE1A,
+  PaletteFileId_CAS_BACK,
+  PaletteFileId_CASTLE1,
+  PaletteFileId_CUSTOM,
+  PaletteFileId_DEMO,
+  PaletteFileId_DEMO1,
+  PaletteFileId_DEMO2,
+  PaletteFileId_GATEWAY,
+  PaletteFileId_GRTNOBLE,
+  PaletteFileId_LORDS2,
+  PaletteFileId_MERCHANT,
+  PaletteFileId_MISC_SEL,
+  PaletteFileId_SCORE1,
+  PaletteFileId_SCORE2,
+  PaletteFileId_SKIRCUST,
+  PaletteFileId_SKIRMISH,
+  PaletteFileId_SPRITE01,
+  PaletteFileId_SPRITE1A,
+  PaletteFileId_START,
+  PaletteFileId_T32_BAT1,
+  PaletteFileId_T32_STN1,
+  PaletteFileId_TITLE,
+  PaletteFileId_TREASURY,
+
+  PaletteFileId_END, // not a real ID; used internally to validate IDs
+  PaletteFileId_NONE, // not a real ID; used externally to indicate the default palette for a Plate file should be used
+} PaletteFileId;
+
+const char* PaletteFile_GetName(PaletteFileId id);
+const wchar_t* PaletteFile_GetName_w(PaletteFileId id);
+
 // A Plate (*.pl8) file is the format Lords of the Realm 2 uses to hold sprint and tile graphics
 // This returns a bitmap for every tile in the plate file, with a trailing null pointer
 Bmp* Plate_LoadFromFile(PlateFileId id);
+Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPalette);
 void Plate_Release(Bmp* bitmaps);
 
 #endif

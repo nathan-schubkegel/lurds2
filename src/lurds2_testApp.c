@@ -5,6 +5,7 @@ Please refer to <http://unlicense.org/>
 */
 
 #include <windows.h>
+#include <CommCtrl.h>
 #include <GL/GL.h>
 #include <stdio.h>
 
@@ -29,6 +30,7 @@ static char mainWindowContent[] = "Welcome to Lurds of the Room 2 Test App";
 static RECT lastMainWindowRectBeforeFullScreen;
 static int mainWindowFullScreen = 0;
 static HWND mainWindowHandle = 0;
+static HWND palettePickerHandle = 0;
 static SoundChannel mainWindowSoundChannel = 0;
 static SoundBuffer mainWindowSoundBuffer = 0;
 static HDC mainWindowHdc;
@@ -179,6 +181,16 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1352, "JsonTests", 75, 10, 65);
   CreateButton(mainWindowHandle, 1353, "FontTests", 75, 85, 65);
   CreateButton(mainWindowHandle, 1354, "PlateTests-1", 100, 160, 65);
+
+  // Create and populate the palette picker combobox
+  palettePickerHandle = CreateWindow(WC_COMBOBOX, TEXT(""), 
+     CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE | WS_VSCROLL,
+     260, 65, 100, 200, mainWindowHandle, NULL, 0, NULL);
+  for (PaletteFileId id = 0; id < PaletteFileId_END; id++)
+  {
+    SendMessageA(palettePickerHandle, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)PaletteFile_GetName(id));
+  }
+  //SendMessage(palettePickerHandle, CB_SETCURSEL, (WPARAM)2, (LPARAM)0); // select an initial item
   
   mainWindowFullScreen = 0;
 
@@ -514,6 +526,21 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
           default:
             return DefWindowProc(hwnd, message, wParam, lParam);
             break;
+        }
+      }
+      else if (HIWORD(wParam) == CBN_SELCHANGE)
+      {
+        if ((HWND)lParam == palettePickerHandle)
+        {
+          int itemIndex = SendMessage((HWND) lParam, (UINT) CB_GETCURSEL, (WPARAM) 0, (LPARAM) 0);
+          if (plateTestBitmapsOne != 0) Plate_Release(plateTestBitmapsOne);
+          plateTestBitmapsOne = Plate_LoadFromFileWithCustomPalette(PlateFileId_VILLAGE, itemIndex < 0 ? PaletteFileId_NONE : itemIndex);
+          if (plateTestBitmapsOne == 0) { DIAGNOSTIC_ERROR("no plates 4 u"); break; }
+          InvalidateRect(hwnd, 0, 1);
+        }
+        else
+        {
+          return DefWindowProc(hwnd, message, wParam, lParam);
         }
       }
       else return DefWindowProc(hwnd, message, wParam, lParam);
