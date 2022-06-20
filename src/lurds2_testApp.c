@@ -31,6 +31,7 @@ static RECT lastMainWindowRectBeforeFullScreen;
 static int mainWindowFullScreen = 0;
 static HWND mainWindowHandle = 0;
 static HWND palettePickerHandle = 0;
+static HWND platePickerHandle = 0;
 static SoundChannel mainWindowSoundChannel = 0;
 static SoundBuffer mainWindowSoundBuffer = 0;
 static HDC mainWindowHdc;
@@ -185,13 +186,34 @@ int APIENTRY WinMain(
   // Create and populate the palette picker combobox
   palettePickerHandle = CreateWindow(WC_COMBOBOX, TEXT(""), 
      CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE | WS_VSCROLL,
-     260, 65, 100, 200, mainWindowHandle, NULL, 0, NULL);
+     260, 65, 200, 200, mainWindowHandle, NULL, 0, NULL);
+  SendMessageA(palettePickerHandle, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)"(default)");
+  SendMessageA(palettePickerHandle, (UINT)CB_SETITEMDATA, (WPARAM)0, (LPARAM)PaletteFileId_NONE);
   for (PaletteFileId id = 0; id < PaletteFileId_END; id++)
   {
-    SendMessageA(palettePickerHandle, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)PaletteFile_GetName(id));
+    int index = SendMessageA(palettePickerHandle, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)PaletteFile_GetName(id));
+    SendMessageA(palettePickerHandle, (UINT)CB_SETITEMDATA, (WPARAM)index, (LPARAM)id);
   }
-  //SendMessage(palettePickerHandle, CB_SETCURSEL, (WPARAM)2, (LPARAM)0); // select an initial item
+  SendMessage(palettePickerHandle, CB_SETCURSEL, (WPARAM)0, (LPARAM)0); // select an initial item
   
+  // Create and populate the plate picker combobox
+  platePickerHandle = CreateWindow(WC_COMBOBOX, TEXT(""),
+     CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE | WS_VSCROLL,
+     260, 95, 200, 200, mainWindowHandle, NULL, 0, NULL);
+  for (PlateFileId id = 0; id < PlateFileId_END; id++)
+  {
+    if (PlateFile_IsSupported(id))
+    {
+      int index = SendMessageA(platePickerHandle, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)PlateFile_GetName(id));
+      SendMessageA(platePickerHandle, (UINT)CB_SETITEMDATA, (WPARAM)index, (LPARAM)id);
+      
+      if (id == PlateFileId_VILLAGE)
+      {
+        SendMessage(palettePickerHandle, CB_SETCURSEL, (WPARAM)index, (LPARAM)0); // select an initial item
+      }
+    }
+  }
+
   mainWindowFullScreen = 0;
 
   // Main message loop:
@@ -530,12 +552,26 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
       }
       else if (HIWORD(wParam) == CBN_SELCHANGE)
       {
-        if ((HWND)lParam == palettePickerHandle)
+        if ((HWND)lParam == palettePickerHandle || (HWND)lParam == platePickerHandle)
         {
-          int itemIndex = SendMessage((HWND) lParam, (UINT) CB_GETCURSEL, (WPARAM) 0, (LPARAM) 0);
-          if (plateTestBitmapsOne != 0) Plate_Release(plateTestBitmapsOne);
-          plateTestBitmapsOne = Plate_LoadFromFileWithCustomPalette(PlateFileId_VILLAGE, itemIndex < 0 ? PaletteFileId_NONE : itemIndex);
-          if (plateTestBitmapsOne == 0) { DIAGNOSTIC_ERROR("no plates 4 u"); break; }
+          int plateFileId = SendMessage(platePickerHandle, (UINT) CB_GETCURSEL, (WPARAM) 0, (LPARAM) 0);
+          if (plateFileId < 0) plateFileId = PlateFileId_VILLAGE;
+          else plateFileId = SendMessage(platePickerHandle, (UINT) CB_GETITEMDATA, (WPARAM)plateFileId, (LPARAM)0);
+
+          int paletteFileId = SendMessage(palettePickerHandle, (UINT) CB_GETCURSEL, (WPARAM) 0, (LPARAM) 0);
+          if (paletteFileId < 0) paletteFileId = PaletteFileId_NONE;
+          else paletteFileId = SendMessage(palettePickerHandle, (UINT) CB_GETITEMDATA, (WPARAM)paletteFileId, (LPARAM)0);
+
+          if (plateTestBitmapsOne != 0)
+          {
+            Plate_Release(plateTestBitmapsOne);
+            plateTestBitmapsOne = 0;
+          }
+          if (PlateFile_IsSupported(plateFileId))
+          {
+            plateTestBitmapsOne = Plate_LoadFromFileWithCustomPalette(plateFileId, paletteFileId);
+            if (plateTestBitmapsOne == 0) { DIAGNOSTIC_ERROR("no plates 4 u"); break; }
+          }
           InvalidateRect(hwnd, 0, 1);
         }
         else

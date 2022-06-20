@@ -104,8 +104,8 @@ typedef enum TileDataType {
 
 typedef struct PlateTileDataTypeIndicator {
   PlateFileId id;
-  const wchar_t * plateFileName_w;
-  const char * plateFileName;
+  const wchar_t * fileName_w;
+  const char * fileName;
   PaletteFileId paletteFileId;
   TileDataType tileDataType;
 } PlateTileDataTypeIndicator;
@@ -358,6 +358,36 @@ static PlateTileDataTypeIndicator KnownPlateFiles[] = {
   { PlateFileId_VILLTOPS, L"VILLTOPS.PL8", "VILLTOPS.PL8", PaletteFileId_BASE01, TileDataType_BMP },
 };
 
+const char* PlateFile_GetName(PlateFileId id)
+{
+  if (id < 0 || id >= PlateFileId_END) {
+    DIAGNOSTIC_PLATE_ERROR("invalid Plate file id");
+    return 0;
+  }
+  
+  return KnownPlateFiles[id].fileName;
+}
+
+const wchar_t* PlateFile_GetName_w(PlateFileId id)
+{
+  if (id < 0 || id >= PlateFileId_END) {
+    DIAGNOSTIC_PLATE_ERROR("invalid Plate file id");
+    return 0;
+  }
+  
+  return KnownPlateFiles[id].fileName_w;
+}
+
+int PlateFile_IsSupported(PlateFileId id)
+{
+  if (id < 0 || id >= PlateFileId_END) {
+    DIAGNOSTIC_PLATE_ERROR("invalid Plate file id");
+    return 0;
+  }
+  
+  return KnownPlateFiles[id].tileDataType == TileDataType_BMP;
+}
+
 typedef struct __attribute__((packed)) PlateHeader {
   uint16_t unknown1;
   uint16_t numTiles;
@@ -394,22 +424,22 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
   PlateHeader* data = 0;
   int fileLength = 0;
 
-  data = (PlateHeader*)ResourceFile_LoadLords2File(KnownPlateFiles[id].plateFileName_w, &fileLength);
+  data = (PlateHeader*)ResourceFile_LoadLords2File(KnownPlateFiles[id].fileName_w, &fileLength);
   if (data == 0) goto error;
 
   if (fileLength < sizeof(PlateHeader)) {
-    DIAGNOSTIC_PLATE_ERROR2("unexpected too-small size of plate file", KnownPlateFiles[id].plateFileName);
+    DIAGNOSTIC_PLATE_ERROR2("unexpected too-small size of plate file", KnownPlateFiles[id].fileName);
     goto error;
   }
   
   if (data->numTiles > 5000) {
-    DIAGNOSTIC_PLATE_ERROR2("unexpected too-large numTiles in plate file ", KnownPlateFiles[id].plateFileName);
+    DIAGNOSTIC_PLATE_ERROR2("unexpected too-large numTiles in plate file ", KnownPlateFiles[id].fileName);
     goto error;
   }
 
   bitmaps = malloc(sizeof(Bmp) * (data->numTiles + 1));
   if (bitmaps == 0) {
-    DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for bitmaps in plate file ", KnownPlateFiles[id].plateFileName);
+    DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for bitmaps in plate file ", KnownPlateFiles[id].fileName);
     goto error;
   }
   memset(bitmaps, 0, sizeof(Bmp) * (data->numTiles + 1));
@@ -422,14 +452,14 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
   for (int i = 0; i < data->numTiles; i++, current += sizeof(TileHeader))
   {
     if (current + sizeof(TileHeader) > end) {
-      DIAGNOSTIC_PLATE_ERROR2("invalid plate file data in ", KnownPlateFiles[id].plateFileName);
+      DIAGNOSTIC_PLATE_ERROR2("invalid plate file data in ", KnownPlateFiles[id].fileName);
       goto error;
     }
 
     TileHeader* t = (TileHeader*)current;
 
     if (start + t->offset > end) {
-      DIAGNOSTIC_PLATE_ERROR2("invalid plate file data in ", KnownPlateFiles[id].plateFileName);
+      DIAGNOSTIC_PLATE_ERROR2("invalid plate file data in ", KnownPlateFiles[id].fileName);
       goto error;
     }
 
@@ -440,7 +470,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
         // each item in 'paletteNumbers' is a 0-255 index in the palette, which contains the RGB values to use for that pixel
         uint8_t* paletteNumbers = start + t->offset;
         if (paletteNumbers + t->width * t->height > end) {
-          DIAGNOSTIC_PLATE_ERROR2("invalid plate file data in ", KnownPlateFiles[id].plateFileName);
+          DIAGNOSTIC_PLATE_ERROR2("invalid plate file data in ", KnownPlateFiles[id].fileName);
           goto error;
         }
 
@@ -450,7 +480,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
         // allocate space for RGBA for each pixel
         uint8_t* rgbaData = malloc(t->height * t->width * 4);
         if (rgbaData == 0) {
-          DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for rgbaData for plate ", KnownPlateFiles[id].plateFileName);
+          DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for rgbaData for plate ", KnownPlateFiles[id].fileName);
           goto error;
         }
 
@@ -484,14 +514,14 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
 
       case TileDataType_ISO:
       {
-        DIAGNOSTIC_PLATE_ERROR2("loading ISO plate data not yet supported, for ", KnownPlateFiles[id].plateFileName);
+        DIAGNOSTIC_PLATE_ERROR2("loading ISO plate data not yet supported, for ", KnownPlateFiles[id].fileName);
         goto error;
       }
       break;
 
       case TileDataType_RLE:
       {
-        DIAGNOSTIC_PLATE_ERROR2("loading RLE plate data not yet supported, for ", KnownPlateFiles[id].plateFileName);
+        DIAGNOSTIC_PLATE_ERROR2("loading RLE plate data not yet supported, for ", KnownPlateFiles[id].fileName);
         goto error;
         /*
         for (int h = 0; h < t->height; h++)
@@ -528,7 +558,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
 
       default:
       {
-        DIAGNOSTIC_PLATE_ERROR2("invalid tile data type for ", KnownPlateFiles[id].plateFileName);
+        DIAGNOSTIC_PLATE_ERROR2("invalid tile data type for ", KnownPlateFiles[id].fileName);
         goto error;
       }
       break;

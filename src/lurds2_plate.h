@@ -295,6 +295,11 @@ typedef enum PaletteFileId {
 const char* PaletteFile_GetName(PaletteFileId id);
 const wchar_t* PaletteFile_GetName_w(PaletteFileId id);
 
+const char* PlateFile_GetName(PlateFileId id);
+const wchar_t* PlateFile_GetName_w(PlateFileId id);
+
+int PlateFile_IsSupported(PlateFileId id);
+
 // A Plate (*.pl8) file is the format Lords of the Realm 2 uses to hold sprint and tile graphics
 // This returns a bitmap for every tile in the plate file, with a trailing null pointer
 Bmp* Plate_LoadFromFile(PlateFileId id);
