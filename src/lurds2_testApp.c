@@ -27,8 +27,6 @@ Please refer to <http://unlicense.org/>
 static char mainWindowClassName[] = "LURDS2_TEST";
 static char mainWindowTitle[]   = "Lurds of the Room 2 Test App";
 static char mainWindowContent[] = "Welcome to Lurds of the Room 2 Test App";
-static RECT lastMainWindowRectBeforeFullScreen;
-static int mainWindowFullScreen = 0;
 static HWND mainWindowHandle = 0;
 static HWND palettePickerHandle = 0;
 static HWND platePickerHandle = 0;
@@ -71,7 +69,6 @@ static PIXELFORMATDESCRIPTOR pfd =
 };
 
 static void CenterWindow(HWND hWnd);
-static void SetFullScreen(int yes, HWND hwnd);
 static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 static void CreateButton(HWND hwnd_parent, int id, char * text, int width, int left, int top);
 static void PlayPeasants();
@@ -214,8 +211,6 @@ int APIENTRY WinMain(
     }
   }
 
-  mainWindowFullScreen = 0;
-
   // Main message loop:
   while (GetMessage(&msg, NULL, 0, 0) > 0)
   {
@@ -241,18 +236,7 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
     case WM_KEYDOWN:
       if (VK_ESCAPE == wParam)
       {
-        if (mainWindowFullScreen)
-        {
-          SetFullScreen(0, hwnd);
-        }
-        else
-        {
-          DestroyWindow(hwnd);
-        }
-      }
-      else if (VK_F11 == wParam)
-      {
-        SetFullScreen(!mainWindowFullScreen, hwnd);
+        DestroyWindow(hwnd);
       }
       else if (VK_UP == wParam || VK_DOWN == wParam || VK_LEFT == wParam || VK_RIGHT == wParam || VK_PAGEUP == wParam || VK_PAGEDOWN == wParam)
       {
@@ -582,21 +566,6 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
       else return DefWindowProc(hwnd, message, wParam, lParam);
       break;
 
-    case WM_SYSCOMMAND:
-      if (SC_MAXIMIZE == wParam) SetFullScreen(1, hwnd);
-      else if (SC_RESTORE == wParam)
-      {
-        SetFullScreen(0, hwnd);
-        return DefWindowProc(hwnd, message, wParam, lParam);
-      }
-      else return DefWindowProc(hwnd, message, wParam, lParam);
-      break;
-      
-    case WM_NCLBUTTONDBLCLK:
-      // TODO: should technically inspect wParam
-      SetFullScreen(1, hwnd);
-      break;
-      
     case WM_PAINT:
     {
       mainWindowPaintCount++;
@@ -631,63 +600,6 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
           return DefWindowProc(hwnd, message, wParam, lParam);
   }
   return 0;
-}
-
-
-static void SetFullScreen(int yes, HWND hwnd)
-{  
-#define WS_NOTFULLSCREEN  (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE)
-#define WS_FULLSCREEN     (WS_POPUP      |              WS_SYSMENU | WS_CLIPCHILDREN | WS_CLIPSIBLINGS               | WS_VISIBLE)
-
-  HMONITOR monitor;
-  MONITORINFO monitorInfo;
-  int monitorWidth, monitorHeight;
-
-  monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-  monitorInfo.cbSize = sizeof(monitorInfo);
-  if (GetMonitorInfo(monitor, &monitorInfo))
-  {
-    if (yes)
-    {
-      monitorWidth = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
-      monitorHeight = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
-      
-      GetWindowRect(hwnd, &lastMainWindowRectBeforeFullScreen);
-      mainWindowFullScreen = 1;
-      SetWindowLongPtr(hwnd, GWL_STYLE, WS_FULLSCREEN);
-      SetWindowPos(hwnd, HWND_TOP, 
-        monitorInfo.rcMonitor.left, 
-        monitorInfo.rcMonitor.top, 
-        monitorWidth,
-        monitorHeight,
-        SWP_FRAMECHANGED);
-    }
-    else if (!yes)
-    {
-      int newWidth, newHeight, newTop, newLeft;
-
-      monitorWidth = monitorInfo.rcWork.right - monitorInfo.rcWork.left;
-      monitorHeight = monitorInfo.rcWork.bottom - monitorInfo.rcWork.top;
-      
-      newWidth = lastMainWindowRectBeforeFullScreen.right - lastMainWindowRectBeforeFullScreen.left;
-      if (newWidth > monitorWidth) newWidth = monitorWidth;
-      newHeight = lastMainWindowRectBeforeFullScreen.bottom - lastMainWindowRectBeforeFullScreen.top;
-      if (newHeight > monitorHeight) newHeight = monitorHeight;
-      newLeft = lastMainWindowRectBeforeFullScreen.left;
-      if (newLeft < monitorInfo.rcWork.left) newLeft = monitorInfo.rcWork.left;
-      newTop = lastMainWindowRectBeforeFullScreen.top;
-      if (newTop < monitorInfo.rcWork.top) newTop = monitorInfo.rcWork.top;
-      
-      mainWindowFullScreen = 0;
-      SetWindowLongPtr(hwnd, GWL_STYLE, WS_NOTFULLSCREEN);
-      SetWindowPos(hwnd, HWND_TOP,
-        newLeft,
-        newTop,
-        newWidth,
-        newHeight,
-        SWP_FRAMECHANGED);
-    }
-  }
 }
 
 static void CenterWindow(HWND hwnd_self)
