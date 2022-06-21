@@ -72,6 +72,43 @@ const wchar_t* PaletteFile_GetName_w(PaletteFileId id)
   return KnownPaletteFiles[id].fileName_w;
 }
 
+// taken from https://stackoverflow.com/a/141943/2221472
+static void brightenRgb(uint8_t* rgb)
+{
+  const double translucence_factor = 3.0f; // this is really a brightness factor; I just call it "translucense" because that's what happens when people try to whiten their teeth too much
+  double r = rgb[0] * translucence_factor;
+  double g = rgb[1] * translucence_factor;
+  double b = rgb[2] * translucence_factor;
+
+  const double threshold = 255.999f;
+  double m = r > g ? r : g; m = m > b ? m : b; // max
+  if (m > threshold)
+  {
+    double total = r + g + b;
+    if (total >= 3 * threshold)
+    {
+      r = g = b = 255.0f;
+    }
+    else
+    {
+      double x = (3 * threshold - total) / (3 * m - total);
+      double gray = threshold - x * m;
+      r = gray + x * r;
+      g = gray + x * g;
+      b = gray + x * b;
+      
+      // guess I don't 100% trust that math yet
+      r = r > 255.0f ? 255.0f : r;
+      g = g > 255.0f ? 255.0f : g;
+      b = b > 255.0f ? 255.0f : b;
+    }
+  }
+  
+  rgb[0] = (uint8_t)r;
+  rgb[1] = (uint8_t)g;
+  rgb[2] = (uint8_t)b;
+}
+
 static const uint8_t* GetPalette(PaletteFileId id)
 {
   if (id < 0 || id >= PaletteFileId_END) {
@@ -83,16 +120,25 @@ static const uint8_t* GetPalette(PaletteFileId id)
   if (f->data == 0)
   {
     int fileLength;
-    f->data = ResourceFile_LoadLords2File(f->fileName_w, &fileLength);
-    if (f->data == 0) return 0;
+    uint8_t* data = ResourceFile_LoadLords2File(f->fileName_w, &fileLength);
+    if (data == 0) return 0;
     
     if (fileLength != 256 * 3) // one byte for each of R,G,B for each of the 256 palette indexes
     {
       DIAGNOSTIC_PLATE_ERROR("invalid palette file length");
+      free(data);
       return 0;
     }
+    
+    // Lords2 palettes are all oddly dark... so brighten them up some!
+    for (int i = 0; i < 256; i++)
+    {
+      brightenRgb(&data[i * 3]);
+    }
+    
+    f->data = data;
   }
-  
+
   return f->data;
 }
 
