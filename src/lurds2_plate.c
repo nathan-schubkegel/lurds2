@@ -497,9 +497,9 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
             }
             else
             {
-              rgbaData[p]     = palette[index + 2]; // R
+              rgbaData[p]     = palette[index]; // R
               rgbaData[p + 1] = palette[index + 1]; // G
-              rgbaData[p + 2] = palette[index];  // B
+              rgbaData[p + 2] = palette[index + 2];  // B
               rgbaData[p + 3] = 0xFF; // A - opaque
             }
           }
