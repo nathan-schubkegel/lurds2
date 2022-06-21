@@ -32,6 +32,7 @@ static int mainWindowFullScreen = 0;
 static HWND mainWindowHandle = 0;
 static HWND palettePickerHandle = 0;
 static HWND platePickerHandle = 0;
+static HWND brightnessSliderHandle = 0;
 static SoundChannel mainWindowSoundChannel = 0;
 static SoundBuffer mainWindowSoundBuffer = 0;
 static HDC mainWindowHdc;
@@ -213,6 +214,14 @@ int APIENTRY WinMain(
       }
     }
   }
+
+  // create a brightness slider
+  brightnessSliderHandle = CreateWindowEx(0, TRACKBAR_CLASS, "Trackbar Control", 
+    WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS | TBS_ENABLESELRANGE,
+    10, 95, 200, 35, mainWindowHandle, 0, 0, NULL);
+  //SendMessage(brightnessSliderHandle, TBM_SETRANGE, (WPARAM) TRUE /*redraw*/, (LPARAM) MAKELONG(0, 100));
+  //SendMessage(brightnessSliderHandle, TBM_SETPAGESIZE, 0, (LPARAM) 1);
+  //SendMessage(brightnessSliderHandle, TBM_SETPOS, (WPARAM) TRUE /*redraw*/, (LPARAM) 0);
 
   mainWindowFullScreen = 0;
 
@@ -581,6 +590,16 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
       }
       else return DefWindowProc(hwnd, message, wParam, lParam);
       break;
+      
+    case WM_HSCROLL:
+    {
+      if (hwnd == brightnessSliderHandle)
+      {
+        InvalidateRect(hwnd, 0, 1);
+      }
+      else return DefWindowProc(hwnd, message, wParam, lParam);
+      break;
+    }
 
     case WM_SYSCOMMAND:
       if (SC_MAXIMIZE == wParam) SetFullScreen(1, hwnd);
@@ -1015,6 +1034,19 @@ static void DrawSomeGl(HWND hwnd)
       
       glScaled(2, 2, 1);
       Bmp_Draw(*it);
+      
+      float brightness = SendMessage(brightnessSliderHandle, TBM_GETPOS, 0, 0) / 100.0f;
+      // draw a quad over the bitmap to brighten its color; suggested at https://stackoverflow.com/a/6554145/2221472
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_DST_COLOR, GL_ONE);
+      glColor3f(brightness, brightness, brightness);
+      glBegin( GL_QUADS );
+        glVertex2f(0.0f, 0.0f);
+        glVertex2f(Bmp_GetWidth(*it), 0.0f);
+        glVertex2f(Bmp_GetWidth(*it), Bmp_GetHeight(*it));
+        glVertex2f(0.0f, Bmp_GetHeight(*it));
+      glEnd();
+      glDisable(GL_BLEND);
 
       glPopMatrix();
       
