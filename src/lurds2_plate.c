@@ -431,7 +431,8 @@ int PlateFile_IsSupported(PlateFileId id)
     return 0;
   }
   
-  return KnownPlateFiles[id].tileDataType == TileDataType_BMP;
+  return KnownPlateFiles[id].tileDataType == TileDataType_BMP ||
+    KnownPlateFiles[id].tileDataType == TileDataType_RLE;
 }
 
 typedef struct __attribute__((packed)) PlateHeader {
@@ -509,20 +510,21 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
       goto error;
     }
 
+    // the palette contains the RGB values to use for each of the available 256 palette indexes
+    const uint8_t* palette = GetPalette(customPalette == PaletteFileId_NONE ? KnownPlateFiles[id].paletteFileId : customPalette);
+    if (palette == 0) goto error;
+
     switch (KnownPlateFiles[id].tileDataType)
     {
       case TileDataType_BMP:
       {
-        // each item in 'paletteNumbers' is a 0-255 index in the palette, which contains the RGB values to use for that pixel
+        // each item in 'paletteNumbers' is a 0-255 index in the palette
         uint8_t* paletteNumbers = start + t->offset;
         if (paletteNumbers + t->width * t->height > end) {
           DIAGNOSTIC_PLATE_ERROR2("invalid plate file data in ", KnownPlateFiles[id].fileName);
           goto error;
         }
 
-        const uint8_t* palette = GetPalette(customPalette == PaletteFileId_NONE ? KnownPlateFiles[id].paletteFileId : customPalette);
-        if (palette == 0) goto error;
-        
         // allocate space for RGBA for each pixel
         uint8_t* rgbaData = malloc(t->height * t->width * 4);
         if (rgbaData == 0) {
@@ -567,38 +569,64 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
 
       case TileDataType_RLE:
       {
-        DIAGNOSTIC_PLATE_ERROR2("loading RLE plate data not yet supported, for ", KnownPlateFiles[id].fileName);
-        goto error;
-        /*
+        // allocate space for RGBA for each pixel
+        uint8_t* rgbaData = malloc(t->height * t->width * 4);
+        if (rgbaData == 0) {
+          DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for rgbaData for plate ", KnownPlateFiles[id].fileName);
+          goto error;
+        }
+        memset(rgbaData, 0, t->height * t->width * 4);
+        
+#define CHECK_PAST_END(b) \
+  if ((b) >= end) { \
+    DIAGNOSTIC_PLATE_ERROR2("insufficient/invalid data in RLE plate ", KnownPlateFiles[id].fileName); \
+    free(rgbaData); \
+    goto error; \
+  }
+
+        uint8_t* b = start + t->offset;
         for (int h = 0; h < t->height; h++)
         {
-          int w = 0;
-          while (w < t->width)
+          int wStart = h * t->width * 4;
+          for (int w = 0; w < t->width; )
           {
-            int numOpqauePixels = stream.readByte();
-            
-            if (numOpqauePixels == 0)
+            CHECK_PAST_END(b);
+            uint8_t numOpaquePixels = *(b++);
+            if (numOpaquePixels == 0)
             {
-              int numTransparentPixels = stream.readByte();
+              CHECK_PAST_END(b);
+              int numTransparentPixels = *(b++);
               w += numTransparentPixels;
             }
             else
             {
-              for (int z = 0; z < numOpqauePixels; z++)
+              CHECK_PAST_END(b + numOpaquePixels - 1);
+              if (w + numOpaquePixels - 1 >= t->width)
               {
-                int index = stream.readByte() * 3;
-                
-                tile[h][w*4]     = palette[index + 2];
-                tile[h][w*4 + 1] = palette[index + 1];
-                tile[h][w*4 + 2] = palette[index];
-                tile[h][w*4 + 3] = 0xFF;
+                DIAGNOSTIC_PLATE_ERROR2("invalid aggregate cell count in a row in RLE plate ", KnownPlateFiles[id].fileName);
+                free(rgbaData);
+                goto error;
+              }
+              
+              for (int z = 0; z < numOpaquePixels; z++)
+              {
+                int p = wStart + w * 4;
+                int index = *(b++) * 3;
+                rgbaData[p]     = palette[index]; // R
+                rgbaData[p + 1] = palette[index + 1]; // G
+                rgbaData[p + 2] = palette[index + 2];  // B
+                rgbaData[p + 3] = 0xFF; // A - opaque
                 
                 w++;
               }
             }
           }
         }
-        */
+        
+        Bmp bitmap = Bmp_LoadFromRgba(rgbaData, t->width, t->height);
+        free(rgbaData);
+        if (bitmap == 0) goto error;
+        bitmaps[i] = bitmap;
       }
       break;
 
