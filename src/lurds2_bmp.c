@@ -352,6 +352,7 @@ static int Bmp_LoadToOpenGLTexture(BmpData* bitmap, uint8_t* rgbaData)
   if (glGetError() != NO_ERROR)
   {
     DIAGNOSTIC_BMP_ERROR("glTexImage2D() failed");
+    glBindTexture(GL_TEXTURE_2D, 0);
     glDeleteTextures(1, &bitmap->glTextureId);
     bitmap->glTextureId = 0;
     return 0;

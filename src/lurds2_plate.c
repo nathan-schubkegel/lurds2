@@ -633,16 +633,17 @@ void Plate_Release(Bmp* bitmaps)
   if (bitmaps == 0)
   {
     DIAGNOSTIC_PLATE_ERROR("invalid null bitmaps arg");
-
-    // free any bitmaps allocated so far
-    Bmp* bitmapsIterator = bitmaps;
-    while (*bitmapsIterator != 0)
-    {
-      Bmp_Release(*bitmapsIterator);
-      bitmapsIterator++;
-    }
-    
-    // then free the bitmaps
-    free(bitmaps);
+    return;
   }
+
+  // free any bitmaps allocated so far
+  Bmp* bitmapsIterator = bitmaps;
+  while (*bitmapsIterator != 0)
+  {
+    Bmp_Release(*bitmapsIterator);
+    bitmapsIterator++;
+  }
+  
+  // then free the bitmaps
+  free(bitmaps);
 }
