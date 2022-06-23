@@ -400,7 +400,7 @@ static PlateTileDataTypeIndicator KnownPlateFiles[] = {
   { PlateFileId_VILLAGE4, L"VILLAGE4.PL8", "VILLAGE4.PL8", PaletteFileId_BASE01, TileDataType_BMP },
   { PlateFileId_VILLANI1, L"VILLANI1.PL8", "VILLANI1.PL8", PaletteFileId_BASE01, TileDataType_BMP },
   { PlateFileId_VILLANI2, L"VILLANI2.PL8", "VILLANI2.PL8", PaletteFileId_BASE01, TileDataType_BMP },
-  { PlateFileId_VILLBORD, L"VILLBORD.PL8", "VILLBORD.PL8", PaletteFileId_BASE01, TileDataType_BMP },
+  { PlateFileId_VILLBORD, L"VILLBORD.PL8", "VILLBORD.PL8", PaletteFileId_BASE01, TileDataType_RLE },
   { PlateFileId_VILLTOPS, L"VILLTOPS.PL8", "VILLTOPS.PL8", PaletteFileId_BASE01, TileDataType_BMP },
 };
 
@@ -482,6 +482,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
 
   // load a Bmp for every tile
   // (TODO: I might need to be more clever and load them all into a single Bmp, but we'll do that when it becomes obviously necessary)
+  int nextBitmapIndex = 0;
   uint8_t* start = (uint8_t*)data;
   uint8_t* current = start + sizeof(PlateHeader);
   uint8_t* end = start + fileLength;
@@ -500,8 +501,8 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
     }
     
     if (t->width == 0 || t->height == 0) {
-      DIAGNOSTIC_PLATE_ERROR2("invalid width/height of plate ", KnownPlateFiles[id].fileName);
-      goto error;
+      // actually some tiles in T32_STN1.PL8 have zero height... and they take up zero data... so skip them
+      continue;
     }
 
     // the palette contains the RGB values to use for each of the available 256 palette indexes
@@ -550,7 +551,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
         Bmp bitmap = Bmp_LoadFromRgba(rgbaData, t->width, t->height);
         free(rgbaData);
         if (bitmap == 0) goto error;
-        bitmaps[i] = bitmap;
+        bitmaps[nextBitmapIndex++] = bitmap;
       }
       break;
 
@@ -613,7 +614,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
         Bmp bitmap = Bmp_LoadFromRgba(rgbaData, t->width, t->height);
         free(rgbaData);
         if (bitmap == 0) goto error;
-        bitmaps[i] = bitmap;
+        bitmaps[nextBitmapIndex++] = bitmap;
       }
       break;
       
@@ -827,7 +828,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
         Bmp bitmap = Bmp_LoadFromRgba(finalRgbaData, 64, 64);
         free(finalRgbaData);
         if (bitmap == 0) goto error;
-        bitmaps[i] = bitmap;
+        bitmaps[nextBitmapIndex++] = bitmap;
       }
       break;
 
