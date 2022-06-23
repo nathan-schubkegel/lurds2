@@ -431,8 +431,8 @@ int PlateFile_IsSupported(PlateFileId id)
     return 0;
   }
   
-  return KnownPlateFiles[id].tileDataType == TileDataType_BMP ||
-    KnownPlateFiles[id].tileDataType == TileDataType_RLE;
+  return !(KnownPlateFiles[id].tileDataType == TileDataType_BMP ||
+    KnownPlateFiles[id].tileDataType == TileDataType_RLE);
 }
 
 typedef struct __attribute__((packed)) PlateHeader {
@@ -509,6 +509,11 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
       DIAGNOSTIC_PLATE_ERROR2("invalid plate file data in ", KnownPlateFiles[id].fileName);
       goto error;
     }
+    
+    if (t->width == 0 || t->height == 0) {
+      DIAGNOSTIC_PLATE_ERROR2("invalid width/height of plate ", KnownPlateFiles[id].fileName);
+      goto error;
+    }
 
     // the palette contains the RGB values to use for each of the available 256 palette indexes
     const uint8_t* palette = GetPalette(customPalette == PaletteFileId_NONE ? KnownPlateFiles[id].paletteFileId : customPalette);
@@ -560,13 +565,6 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
       }
       break;
 
-      case TileDataType_ISO:
-      {
-        DIAGNOSTIC_PLATE_ERROR2("loading ISO plate data not yet supported, for ", KnownPlateFiles[id].fileName);
-        goto error;
-      }
-      break;
-
       case TileDataType_RLE:
       {
         // allocate space for RGBA for each pixel
@@ -579,7 +577,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
         
 #define CHECK_PAST_END(b) \
   if ((b) >= end) { \
-    DIAGNOSTIC_PLATE_ERROR2("insufficient/invalid data in RLE plate ", KnownPlateFiles[id].fileName); \
+    DIAGNOSTIC_PLATE_ERROR2("insufficient/invalid data in plate ", KnownPlateFiles[id].fileName); \
     free(rgbaData); \
     goto error; \
   }
@@ -625,6 +623,220 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
         
         Bmp bitmap = Bmp_LoadFromRgba(rgbaData, t->width, t->height);
         free(rgbaData);
+        if (bitmap == 0) goto error;
+        bitmaps[i] = bitmap;
+      }
+      break;
+      
+      case TileDataType_ISO:
+      {
+        // see below for these requirements
+        if (t->height < 30 || t->width < 58)
+        {
+          DIAGNOSTIC_PLATE_ERROR2("invalid height/width for plate ", KnownPlateFiles[id].fileName);
+          goto error;
+        }
+        
+        // allocate space for final RGBA data
+        int finalRgbaDataLength = 64 * 64 * 4; // I guess these things are always 64 wide, 64 tall
+        uint8_t* finalRgbaData = malloc(finalRgbaDataLength);
+        if (finalRgbaData == 0) {
+          DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for finalRgbaData for plate ", KnownPlateFiles[id].fileName);
+          goto error;
+        }
+        memset(finalRgbaData, 0, finalRgbaDataLength);
+
+        // allocate space for first-pass RGBA for each pixel
+        int rgbaDataLength = t->height * t->width * 4;
+        uint8_t* rgbaData = malloc(rgbaDataLength);
+        if (rgbaData == 0) {
+          DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for rgbaData for plate ", KnownPlateFiles[id].fileName);
+          free(finalRgbaData);
+          goto error;
+        }
+        memset(rgbaData, 0, t->height * t->width * 4);
+        
+        // this gets used later
+        int extraHeight = 0;
+        int extraLength = 0;
+        uint8_t * extra = 0;
+        
+#define CHECK_PAST_RGBA_LENGTH(p) \
+  if ((p) >= rgbaDataLength) { \
+    DIAGNOSTIC_PLATE_ERROR2("insufficient/invalid data in plate ", KnownPlateFiles[id].fileName); \
+    free(rgbaData); \
+    free(finalRgbaData); \
+    goto error; \
+  }
+        
+        // upper part of the tile
+        uint8_t* b = start + t->offset;
+        for (int h = 0; h < 15; h++)
+        {
+          int wStart = h * t->width * 4;
+          for (int w = 0; w < (h*4)+2; w++)
+          {
+            int ww = ((14-h)*2 + w) * 4;
+            int p = wStart + ww;
+            CHECK_PAST_RGBA_LENGTH(p);
+
+            CHECK_PAST_END(b);
+            int index = *(b++) * 3;
+            rgbaData[p]     = palette[index]; // R
+            rgbaData[p + 1] = palette[index + 1]; // G
+            rgbaData[p + 2] = palette[index + 2];  // B
+            rgbaData[p + 3] = 0xFF; // A - opaque
+          }
+        }
+        
+        // lower part of the tile
+        for (int h = 0; h < 15; h++)
+        {
+          int hh = h + 15;
+          int wStart = hh * t->width * 4;
+          for (int w = 0; w<((14-h)*4)+2; w++)
+          {
+            int ww = (h*2 + w) * 4;
+            int p = wStart + ww;
+            CHECK_PAST_RGBA_LENGTH(p);
+            
+            CHECK_PAST_END(b);
+            int index = *(b++) * 3;
+            rgbaData[p]     = palette[index]; // R
+            rgbaData[p + 1] = palette[index + 1]; // G
+            rgbaData[p + 2] = palette[index + 2];  // B
+            rgbaData[p + 3] = 0xFF; // A - opaque
+          }
+        }
+        
+        if (t->extraType != 1)
+        {
+          // read extra rows
+          int leftOffset = 0;
+          int rightOffset = t->width;
+          
+          if (t->extraType == 3) { // left only
+            rightOffset = t->width/2 + 1;
+          } else if (t->extraType == 4) { // right only
+            leftOffset = t->width/2 - 1;
+          }
+          
+          int halfHeight = t->height >> 1;
+          int halfWidth = t->width >> 1;
+          extraHeight = t->extraRows + halfHeight;
+          extraLength = extraHeight * t->width * 4;
+          extra = malloc(extraLength);
+          if (extra == 0)
+          {
+            DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for extra for plate ", KnownPlateFiles[id].fileName);
+            free(rgbaData);
+            free(finalRgbaData);
+            goto error;
+          }
+          memset(extra, 0, extraLength);
+          
+          uint8_t * row = malloc(t->width);
+          if (row == 0)
+          {
+            DIAGNOSTIC_PLATE_ERROR2("failed to allocate memory for extra row for plate ", KnownPlateFiles[id].fileName);
+            free(rgbaData);
+            free(finalRgbaData);
+            free(extra);
+            goto error;
+          }
+          memset(row, 0, t->width);
+          
+#define CHECK_PAST_EXTRA_END(b) \
+  if ((b) >= end) { \
+    DIAGNOSTIC_PLATE_ERROR2("insufficient/invalid data in plate ", KnownPlateFiles[id].fileName); \
+    free(rgbaData); \
+    free(finalRgbaData); \
+    free(extra); \
+    free(row); \
+    goto error; \
+  }
+  
+#define CHECK_PAST_EXTRA_LENGTH(p) \
+  if ((p) >= extraLength) { \
+    DIAGNOSTIC_PLATE_ERROR2("insufficient/invalid data in plate ", KnownPlateFiles[id].fileName); \
+    free(rgbaData); \
+    free(finalRgbaData); \
+    free(extra); \
+    free(row); \
+    goto error; \
+  }
+
+          for (int h = 0; h < t->extraRows; h++)
+          {
+            memset(row, 0, t->width);
+            for (int z = leftOffset; z < rightOffset; z++)
+            {
+              CHECK_PAST_EXTRA_END(b);
+              row[z] = *(b++);
+            }
+
+            for (int w = leftOffset; w < rightOffset; w++)
+            {
+              int yPos = t->extraRows - h;
+              
+              if (w <= halfWidth)
+              {
+                yPos += (halfHeight-1) - (w/2);
+              } 
+              else
+              {
+                yPos += (w/2) - (halfHeight-1);
+              }
+              
+              int index = row[w] * 3;
+              
+              if (index != 0)
+              {
+                int wStart = yPos * t->width * 4;
+                int p = wStart + w * 4;
+                CHECK_PAST_EXTRA_LENGTH(p);
+                extra[p]     = palette[index]; // R
+                extra[p + 1] = palette[index + 1]; // G
+                extra[p + 2] = palette[index + 2];  // B
+                extra[p + 3] = 0xFF; // A - opaque
+              }
+            }
+          }
+          
+          free(row);
+        }
+        
+        // remember that finalRgbaData has height=64, width=64
+        for (int j = 0; j < 30; j++)
+        {
+          for (int k = 0; k < 58 * 4; k++)
+          {
+            finalRgbaData[(j+34) * 64 * 4 + k] = rgbaData[j * t->width + k]; // NOTE: not bounds-checking rgbaData[] accessor because j=30, k=58 were checked 2 pages up
+          }
+        }
+
+        if (t->extraType != 1 && t->extraType != 0)
+        {
+          for (int j = 0; j < extraHeight; j++)
+          {
+            for (int k = 0; k < 58*4; k+=4)
+            {
+              if (extra[j * t->width * 4 + k + 3] != 0)
+              {
+                for (int m = 0; m < 4; m++)
+                {
+                  finalRgbaData[(j + 33 - t->extraRows) * 64 + k + m] = extra[j * t->width + k + m];
+                }
+              }
+            }
+          }
+        }
+        
+        // NOTE: original code added to tileset at t->y - 34
+        free(rgbaData);
+        free(extra);
+        Bmp bitmap = Bmp_LoadFromRgba(finalRgbaData, 64, 64);
+        free(finalRgbaData);
         if (bitmap == 0) goto error;
         bitmaps[i] = bitmap;
       }
