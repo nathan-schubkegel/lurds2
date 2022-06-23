@@ -424,17 +424,6 @@ const wchar_t* PlateFile_GetName_w(PlateFileId id)
   return KnownPlateFiles[id].fileName_w;
 }
 
-int PlateFile_IsSupported(PlateFileId id)
-{
-  if (id < 0 || id >= PlateFileId_END) {
-    DIAGNOSTIC_PLATE_ERROR("invalid Plate file id");
-    return 0;
-  }
-  
-  return !(KnownPlateFiles[id].tileDataType == TileDataType_BMP ||
-    KnownPlateFiles[id].tileDataType == TileDataType_RLE);
-}
-
 typedef struct __attribute__((packed)) PlateHeader {
   uint16_t unknown1;
   uint16_t numTiles;
@@ -811,7 +800,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
         {
           for (int k = 0; k < 58 * 4; k++)
           {
-            finalRgbaData[(j+34) * 64 * 4 + k] = rgbaData[j * t->width + k]; // NOTE: not bounds-checking rgbaData[] accessor because j=30, k=58 were checked 2 pages up
+            finalRgbaData[(j+34) * 64 * 4 + k] = rgbaData[j * t->width * 4 + k]; // NOTE: not bounds-checking rgbaData[] accessor because j=30, k=58 were checked 2 pages up
           }
         }
 
@@ -825,7 +814,7 @@ Bmp* Plate_LoadFromFileWithCustomPalette(PlateFileId id, PaletteFileId customPal
               {
                 for (int m = 0; m < 4; m++)
                 {
-                  finalRgbaData[(j + 33 - t->extraRows) * 64 + k + m] = extra[j * t->width + k + m];
+                  finalRgbaData[(j + 33 - t->extraRows) * 64 * 4 + k + m] = extra[j * t->width * 4 + k + m];
                 }
               }
             }

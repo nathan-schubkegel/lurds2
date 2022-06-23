@@ -199,15 +199,12 @@ int APIENTRY WinMain(
      260, 95, 200, 200, mainWindowHandle, NULL, 0, NULL);
   for (PlateFileId id = 0; id < PlateFileId_END; id++)
   {
-    if (PlateFile_IsSupported(id))
+    int index = SendMessageA(platePickerHandle, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)PlateFile_GetName(id));
+    SendMessageA(platePickerHandle, (UINT)CB_SETITEMDATA, (WPARAM)index, (LPARAM)id);
+    
+    if (id == PlateFileId_VILLAGE)
     {
-      int index = SendMessageA(platePickerHandle, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)PlateFile_GetName(id));
-      SendMessageA(platePickerHandle, (UINT)CB_SETITEMDATA, (WPARAM)index, (LPARAM)id);
-      
-      if (id == PlateFileId_VILLAGE)
-      {
-        SendMessage(palettePickerHandle, CB_SETCURSEL, (WPARAM)index, (LPARAM)0); // select an initial item
-      }
+      SendMessage(palettePickerHandle, CB_SETCURSEL, (WPARAM)index, (LPARAM)0); // select an initial item
     }
   }
 
@@ -551,11 +548,8 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
             Plate_Release(plateTestBitmapsOne);
             plateTestBitmapsOne = 0;
           }
-          if (PlateFile_IsSupported(plateFileId))
-          {
-            plateTestBitmapsOne = Plate_LoadFromFileWithCustomPalette(plateFileId, paletteFileId);
-            if (plateTestBitmapsOne == 0) { DIAGNOSTIC_ERROR("no plates 4 u"); break; }
-          }
+          plateTestBitmapsOne = Plate_LoadFromFileWithCustomPalette(plateFileId, paletteFileId);
+          if (plateTestBitmapsOne == 0) { DIAGNOSTIC_ERROR("no plates 4 u"); break; }
           InvalidateRect(hwnd, 0, 1);
         }
         else
