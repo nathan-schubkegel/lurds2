@@ -37,6 +37,9 @@ static HGLRC mainWindowGlrc;
 static Bmp mainWindowBitmap;
 static Font oldTimeyFont;
 static Bmp* plateTestBitmapsOne;
+static int castleBitmapsColor = -1;
+static int castleBitmapsBuildStage = -1;
+static Bmp* castleBitmaps;
 static int mainWindowPaintCount;
 static RECT mainWindowLastPaintSize;
 static int mainWindowBitmapSlice_which;
@@ -179,6 +182,7 @@ int APIENTRY WinMain(
   CreateButton(mainWindowHandle, 1352, "JsonTests", 75, 10, 65);
   CreateButton(mainWindowHandle, 1353, "FontTests", 75, 85, 65);
   CreateButton(mainWindowHandle, 1354, "PlateTests-1", 100, 160, 65);
+  CreateButton(mainWindowHandle, 1355, "Castle", 55, 10, 95);
 
   // Create and populate the palette picker combobox
   palettePickerHandle = CreateWindow(WC_COMBOBOX, TEXT(""), 
@@ -522,6 +526,28 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
             if (plateTestBitmapsOne != 0) Plate_Release(plateTestBitmapsOne);
             plateTestBitmapsOne = Plate_LoadFromFile(PlateFileId_VILLAGE);
             if (plateTestBitmapsOne == 0) { DIAGNOSTIC_ERROR("no plates 4 u"); break; }
+            InvalidateRect(hwnd, 0, 1);
+          }
+          break;
+          
+          case 1355:
+          {
+            // cycle through castle seasons and states of building/destruction each time this button is pressed
+            if (castleBitmapsColor < 0) castleBitmapsColor++;
+            castleBitmapsBuildStage++;
+            if (castleBitmapsBuildStage >= 4)
+            {
+              castleBitmapsColor++;
+              castleBitmapsBuildStage = 0;
+            }
+            if (castleBitmapsColor >= 4)
+            {
+              castleBitmapsColor = 0;
+            }
+
+            if (castleBitmaps != 0) Plate_Release(castleBitmaps);
+            castleBitmaps = Plate_LoadFromFile(PlateFileId_CASTLE1A + castleBitmapsColor);
+            if (castleBitmaps == 0) { DIAGNOSTIC_ERROR("no castles 4 u"); break; }
             InvalidateRect(hwnd, 0, 1);
           }
           break;
@@ -905,8 +931,10 @@ static void DrawSomeGl(HWND hwnd)
     int wNext = 10;
     int hNext = 170;
     int tallestInThisRow = 0;
+    int number = -1;
     for (Bmp* it = plateTestBitmapsOne; *it != 0; it++)
     {
+      number++;
       if (wNext + Bmp_GetWidth(*it) * 2 > windowWidth)
       {
         hNext += tallestInThisRow;
@@ -918,9 +946,21 @@ static void DrawSomeGl(HWND hwnd)
       glPushMatrix();
       glLoadIdentity();
       glTranslated(wNext, hNext, 0);
-      
+
       glScaled(2, 2, 1);
       Bmp_Draw(*it);
+
+      static Font plateTestFont = 0;
+      if (plateTestFont == 0)
+      {
+        plateTestFont = Font_LoadFromResourceFile(L"old_timey_font.json");
+        if (plateTestFont == 0) { DIAGNOSTIC_ERROR("no fonts 4 u"); }
+      }
+      char numberBuffer[50];
+      sprintf(numberBuffer, "%d", number);
+      glScaled(0.5, 0.5, 1);
+      glColor3f(1, 1, 1);
+      Font_RenderSingleLine(plateTestFont, numberBuffer);
 
       glPopMatrix();
       
@@ -930,6 +970,40 @@ static void DrawSomeGl(HWND hwnd)
         tallestInThisRow = Bmp_GetHeight(*it) * 2;
       }
     }
+  }
+  
+  if (castleBitmaps)
+  {
+    // count the bitmaps to make sure I don't go over?
+    //int bitmapCount = 0;
+    //for (Bmp* it = castleBitmaps; *it != 0; it++) bitmapCount++;
+    
+    // castles are 4 tiles in a diamond, ordered as top, left, right, bottom
+    //   healthy royal = frame 16
+    //   burnt-out royal = frame 36
+    //   some-built royal = frame 56
+    //   more-built royal = frame 76
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    glScaled(2, 2, 1);
+    glTranslated(30/2, 170/2, 0);
+
+    for (int i = 0; i < 5; i++)
+    {
+      int tileNumber = i * 4 + castleBitmapsBuildStage * 20;
+      glTranslated(30, -15, 0);
+      Bmp_Draw(castleBitmaps[tileNumber]);
+      glTranslated(-30, 15, 0);
+      Bmp_Draw(castleBitmaps[tileNumber+1]);
+      glTranslated(60, 0, 0);
+      Bmp_Draw(castleBitmaps[tileNumber+2]);
+      glTranslated(-30, 15, 0);
+      Bmp_Draw(castleBitmaps[tileNumber+3]);
+      glTranslated(90, -15, 0);
+    }
+
+    glPopMatrix();
   }
   
   //Check for error
