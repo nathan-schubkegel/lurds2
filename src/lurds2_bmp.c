@@ -101,52 +101,52 @@ static Bmp Bmp_LoadFromResourceFile_Internal(const wchar_t * fileName, int isMas
   }
 
   if (memcmp(&data->bm, "BM", 2) != 0) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected non-bm signature in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected non-bm signature in bmp file");
     goto error;
   }
 
   if (data->headerSize != 40) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected non-BITMAPINFOHEADER header in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected non-BITMAPINFOHEADER header in bmp file");
     goto error;
   }
 
   if (data->infoHeader.biWidth < 0) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected non-positive biWidth in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected non-positive biWidth in bmp file");
     goto error;
   }
 
   if (data->infoHeader.biWidth > 2000) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected > 2000 biWidth in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected > 2000 biWidth in bmp file");
     goto error;
   }
 
   if (data->infoHeader.biHeight < 0) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected non-positive biHeight in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected non-positive biHeight in bmp file");
     goto error;
   }
 
   if (data->infoHeader.biHeight > 2000) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected > 2000 biHeight in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected > 2000 biHeight in bmp file");
     goto error;
   }
 
   if (data->infoHeader.biPlanes != 1) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected biPlanes != 1 in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected biPlanes != 1 in bmp file");
     goto error;
   }
 
   if (data->infoHeader.biBitCount != 24) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected biBitCount != 24 in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected biBitCount != 24 in bmp file");
     goto error;
   }
 
   if (data->infoHeader.biCompression != BI_RGB) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected biCompression != BI_RGB (0) in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected biCompression != BI_RGB (0) in bmp file");
     goto error;
   }
 
   if (data->infoHeader.biClrUsed != 0) {
-    DIAGNOSTIC_SOUND_ERROR("unexpected biClrUsed != 0 in bmp file");
+    DIAGNOSTIC_BMP_ERROR("unexpected biClrUsed != 0 in bmp file");
     goto error;
   }
 
