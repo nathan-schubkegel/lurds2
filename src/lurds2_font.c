@@ -239,7 +239,7 @@ void Font_Release(Font font)
 
 static FontMeasurement Font_DoSingleLine(Font font, const char * text, int render)
 {
-  FontMeasurement result = { 0, 0, 0 };
+  FontMeasurement result = { 0, 0, 0, 0 };
   
   if (text == 0)
   {
@@ -254,6 +254,9 @@ static FontMeasurement Font_DoSingleLine(Font font, const char * text, int rende
     return result;
   }
   
+  GLenum oldMode;
+  glGetIntegerv(GL_MATRIX_MODE, &oldMode);
+  glMatrixMode(GL_MODELVIEW);
   glPushMatrix();
   while (*text != 0)
   {
@@ -280,10 +283,15 @@ static FontMeasurement Font_DoSingleLine(Font font, const char * text, int rende
     }
 
     result.width += c->width;
+    if (c->heightDown > result.descenderHeight)
+    {
+      result.descenderHeight = c->heightDown;
+    }
 
     text++;
   }
   glPopMatrix();
+  glMatrixMode(oldMode);
 
   result.universalLineHeight = data->universalHeightUp;
   result.success = 1;

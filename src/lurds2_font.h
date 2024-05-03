@@ -12,8 +12,9 @@ typedef void* Font;
 typedef struct FontMeasurement
 {
   int success;
-  uint32_t width; // the aggregate width of all rendered letters
+  uint32_t width; // The aggregate width of all rendered letters
   uint32_t universalLineHeight; // The amount of vertical space reserved by the font to render capital letters
+  uint32_t descenderHeight; // The amount of vertical space drawn below the font baseline for these letters
 } FontMeasurement;
 
 // A Font holds all data loaded from resource files needed to render text to an opengl surface
