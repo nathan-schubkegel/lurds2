@@ -11,25 +11,20 @@ Please refer to <http://unlicense.org/>
 //#include "lurds2_sound.c"
 #include "lurds2_errors.c"
 //#include "lurds2_performanceCounter.c"
-//#include "lurds2_resourceFile.c"
+#include "lurds2_resourceFile.c"
 //#include "lurds2_looa.c"
-//#include "lurds2_bmp.c"
-//#include "lurds2_jsonstream.c"
+#include "lurds2_bmp.c"
+#include "lurds2_jsonstream.c"
 //#include "lurds2_stack.c"
-//#include "lurds2_stringutils.c"
-//#include "lurds2_font.c"
-
-#define VK_PAGEUP VK_PRIOR
-#define VK_PAGEDOWN VK_NEXT
+#include "lurds2_stringutils.c"
+#include "lurds2_font.c"
 
 static char mainWindowClassName[] = "LURDS2";
 static char mainWindowTitle[]   = "Lurds of the Room 2";
 static RECT lastMainWindowRectBeforeFullScreen;
 static int mainWindowFullScreen = 0;
-static HWND mainWindowHandle = 0;
-static HDC mainWindowHdc;
-static HGLRC mainWindowGlrc;
-static RECT mainWindowLastPaintSize;
+static HDC mainWindowHdc = 0;
+static Font oldTimeyFont;
 
 // shamelessly stolen from https://www.khronos.org/opengl/wiki/Creating_an_OpenGL_Context_(WGL)
 static PIXELFORMATDESCRIPTOR pfd =
@@ -55,8 +50,16 @@ static PIXELFORMATDESCRIPTOR pfd =
 static void CenterWindow(HWND hWnd);
 static void SetFullScreen(int yes, HWND hwnd);
 static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-static void DrawSomeGl(HWND hwnd);
+static void DrawPoo(HWND hwnd, HDC hdc);
+static void DrawSomeGl(HWND hwnd, HDC hdc);
 static void HandleKeyDown(HWND hwnd, WPARAM wParam);
+static void RedrawTimerProc(
+  HWND hwnd,
+  UINT unnamedParam2,
+  UINT_PTR unnamedParam3,
+  DWORD unnamedParam4
+);
+
 
 int APIENTRY WinMain(
   HINSTANCE hInstance,
@@ -85,6 +88,7 @@ int APIENTRY WinMain(
     return 1;
   }
 
+  HWND mainWindowHandle = 0;
   mainWindowHandle = CreateWindow(
     mainWindowClassName,
     mainWindowTitle,
@@ -125,6 +129,7 @@ int APIENTRY WinMain(
     return 1;
   }
 
+  HGLRC mainWindowGlrc;
   mainWindowGlrc = wglCreateContext(mainWindowHdc);
   if (mainWindowGlrc == 0)
   {
@@ -137,11 +142,19 @@ int APIENTRY WinMain(
     DIAGNOSTIC_ERROR("Unable to make gl context current for main window");
     return 1;
   }
+  
+  oldTimeyFont = Font_LoadFromResourceFile(L"old_timey_font.json");
+  if (oldTimeyFont == 0) { FATAL_ERROR("Failed to load font \"old_timey_font.json\""); }
 
   //MessageBoxA(0, (char*)glGetString(GL_VERSION), "OPENGL VERSION", 0);
   //wglDeleteContext(mainWindowGlrc);
 
   mainWindowFullScreen = 0;
+  
+  SetTimer(mainWindowHandle,
+    1337, // ID of the timer
+    500, // ms repeat interval
+    &RedrawTimerProc);
 
   // Main message loop:
   while (GetMessage(&msg, NULL, 0, 0) > 0)
@@ -172,10 +185,19 @@ static LRESULT CALLBACK MainWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
       return 0; // MSDN says: An application should return zero if it processes this message.
 
     case WM_PAINT:
-      DrawSomeGl(hwnd);
-      
-      // this "validates" the painted region so the app doesn't sit in a 100% CPU burning paint loop
-      return DefWindowProc(hwnd, message, wParam, lParam);
+    {
+      // remove the entire client area from the update region or else infinite WM_PAINT
+      // messages will be delivered. (BeginPaint() and DefWindowProc() would also do this, if we used them)
+      ValidateRect(hwnd, 0);
+
+      DrawSomeGl(hwnd, mainWindowHdc);
+
+      // an application returns zero to indicate it has processed the message.
+      return 0;
+    }
+    
+    case WM_ERASEBKGND: // should never be called, but just in case...
+      return 1; // returning non-zero indicates the application has erased the background
 
     default:
       return DefWindowProc(hwnd, message, wParam, lParam);
@@ -204,6 +226,16 @@ static void HandleKeyDown(HWND hwnd, WPARAM wParam)
 
 static void SetFullScreen(int yes, HWND hwnd)
 {  
+  if (yes && mainWindowFullScreen)
+  {
+    return; // already full screen; don't do it again
+  }
+  
+  if (!yes && !mainWindowFullScreen)
+  {
+    return; // already not full screen; don't undo it again
+  }
+
 #define WS_NOTFULLSCREEN  (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE)
 #define WS_FULLSCREEN     (WS_POPUP      |              WS_SYSMENU | WS_CLIPCHILDREN | WS_CLIPSIBLINGS               | WS_VISIBLE)
 
@@ -229,6 +261,8 @@ static void SetFullScreen(int yes, HWND hwnd)
         monitorWidth,
         monitorHeight,
         SWP_FRAMECHANGED);
+
+      RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
     }
     else if (!yes)
     {
@@ -254,6 +288,8 @@ static void SetFullScreen(int yes, HWND hwnd)
         newWidth,
         newHeight,
         SWP_FRAMECHANGED);
+
+      RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
     }
   }
 }
@@ -284,7 +320,64 @@ static void CenterWindow(HWND hwnd_self)
     );
 }
 
-static void DrawSomeGl(HWND hwnd)
+static int poo = 0;
+
+static void RedrawTimerProc(
+  HWND hwnd,
+  UINT unnamedParam2,
+  UINT_PTR unnamedParam3,
+  DWORD unnamedParam4
+)
+{
+  RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
+  
+  if (poo == 0)
+  {
+    Sleep(5000);
+  }
+  poo++;
+  
+  RedrawWindow(hwnd, 0, 0, RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
+}
+
+static void DrawPoo(HWND hwnd, HDC hdc)
+{
+  char nurp[50];
+  itoa(poo, nurp, 10);
+  
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+  glTranslated(10, 50, 0);
+  
+  glScaled(2, 2, 1);
+  glColor4f(0.0f, 0.0f, 1.0f, 0.3f); // transparent blue
+  FontMeasurement m = Font_RenderSingleLine(oldTimeyFont, "The quick brown fox trips over the zarking lazy dog. Ha!");
+  
+  // give an indication of which are the "upper" and "lower" portions
+  glTranslated(-10, 0, 0);
+  glBegin( GL_QUADS );
+      glColor3f(0.0f, 1.0f, 0.0f); // green
+      glVertex2f(0.0f, 0.0f);
+      glVertex2f(10.0f, 0.0f);
+      glVertex2f(10.0f, m.universalLineHeight);
+      glVertex2f(0.0f, m.universalLineHeight);
+      glColor3f(1.0f, 0.0f, 0.0f); // red
+      glVertex2f(0.0f, m.universalLineHeight);
+      glVertex2f(10.0f, m.universalLineHeight);
+      glVertex2f(10.0f, m.universalLineHeight + 1);//m.heightDown);
+      glVertex2f(0.0f, m.universalLineHeight + 1);//m.heightDown);
+      glColor3f(0.0f, 1.0f, 1.0f); // yellow
+      glVertex2f(0.0f, m.universalLineHeight + 1);
+      glVertex2f(10.0f, m.universalLineHeight + 1);
+      glVertex2f(10.0f, m.universalLineHeight + m.descenderHeight);
+      glVertex2f(0.0f, m.universalLineHeight + m.descenderHeight);
+  glEnd();
+  
+  glTranslated(10, 30, 0);
+  Font_RenderSingleLine(oldTimeyFont, nurp);
+}
+
+static void DrawSomeGl(HWND hwnd, HDC hdc)
 {
   // determine window width/height
   RECT bounds;
@@ -293,12 +386,8 @@ static void DrawSomeGl(HWND hwnd)
   width = abs(bounds.right - bounds.left);
   height = abs(bounds.bottom - bounds.top);
 
-  // update viewport when window has resized
-  // (so GL is aware there's more area to draw, rather than stretching stuff out)
-  if (memcmp(&mainWindowLastPaintSize, &bounds, sizeof(RECT)) != 0) {
-    glViewport(0, 0, width, height);
-  }
-  mainWindowLastPaintSize = bounds;
+  // set up viewport so GL draws to the window pixel-per-pixel, rather than stretching stuff out
+  glViewport(0, 0, width, height);
 
   // Initialize Projection Matrix so drawing is done in pixel coordinates
   // with top left at (0, 0) and bottom right at (width, height) just like desktop graphics
@@ -318,12 +407,23 @@ static void DrawSomeGl(HWND hwnd)
   
   //Render quad
   glBegin( GL_QUADS );
-      glColor3f(0.5f, 0.5f, 0.5f); // gray
-      glVertex2f(20, 20);
-      glVertex2f(width - 20, 20);
-      glVertex2f(width - 20, height - 20);
-      glVertex2f(20, height - 20);
+    glColor3f(0.5f, 0.5f, 0.5f); // gray
+    glVertex2f(20, 20);
+    glVertex2f(width - 20, 20);
+    glVertex2f(width - 20, height - 20);
+    glVertex2f(20, height - 20);
   glEnd();
+  
+  //Render quad
+  glBegin( GL_QUADS );
+    glColor3f(0.2f, 0.8f, 0.2f); // baby poop green
+    glVertex2f(10, 10);
+    glVertex2f(40, 10);
+    glVertex2f(40, 40);
+    glVertex2f(10, 40);
+  glEnd();
+  
+  DrawPoo(hwnd, hdc);
 
   //Check for error
   GLenum error = glGetError();
@@ -339,5 +439,5 @@ static void DrawSomeGl(HWND hwnd)
    * than that the OpenGL queue gets flushed a few CPU cycles
    * earlier. */
   glFlush();
-  SwapBuffers(mainWindowHdc);
+  SwapBuffers(hdc);
 }
