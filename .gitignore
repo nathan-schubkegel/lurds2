@@ -1,5 +1,6 @@
 obj/
 tcc/
+glfw/
 lua-5.4.2/
 stuff/
 publish/

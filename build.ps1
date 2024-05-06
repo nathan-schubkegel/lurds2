@@ -14,6 +14,7 @@ if ($clean) {
   Remove-Item "obj" -Recurse -ErrorAction Ignore 
   Remove-Item "publish" -Recurse -ErrorAction Ignore 
   Remove-Item "tcc" -Recurse -ErrorAction Ignore 
+  Remove-Item "glfw" -Recurse -ErrorAction Ignore
   exit 0
 }
 
@@ -57,6 +58,64 @@ if (-not (Test-Path -Path "lua-5.4.2/src/lapi.h")) {
   }
 }
 
+if (-not (Test-Path -Path "glfw/src/glfw.rc.in")) {
+  $archivePath = "deps/glfw_3.4.zip"
+  $fileInfo = Get-Item $archivePath
+  if ($fileInfo.Length -le 500) {
+    throw "$archivePath unexpected file size... most likely git LFS is not installed. Install it and re-clone the repo."
+  }
+  Write-Host "Extracting glfw"
+  Expand-Archive -LiteralPath $archivePath -DestinationPath "./glfw" -Force
+  if (-not (Test-Path -Path "glfw/src/glfw.rc.in")) {
+    throw "tried to expand glfw files, but they didn't end up in the right spot"
+  }
+  
+  # it needs a modification to compile with tcc correctly
+  (Get-Content "glfw/src/CMakeLists.txt") | 
+    Foreach-Object {
+        if ($_ -match "add_library") 
+        {
+            "add_definitions(-D__STDC_NO_VLA__=1)"
+        }
+        $_ # send the current line to output
+    } | Set-Content "glfw/src/CMakeLists.txt"
+}
+
+## TODO: CMake for windows, download from https://github.com/Kitware/CMake/releases/download/v3.29.2/cmake-3.29.2-windows-i386.zip
+
+if ((-not $IsWindows) -and -not (Test-Path -Path "glfw/tcc_build/Makefile")) {
+  if ($env:XDG_SESSION_TYPE -eq "x11") {
+    $glfwArgs = @("-D", "GLFW_BUILD_WAYLAND=0")
+  }
+  elseif ($env:XDG_SESSION_TYPE -eq "wayland") {
+    $glfwArgs = @("-D", "GLFW_BUILD_X11=0")
+  }
+  else {
+    throw "Unrecognized / unsupported XDG_SESSION_TYPE=$($env:XDG_SESSION_TYPE)"
+  }
+  $glfwArgs += "-DCMAKE_C_COMPILER=tcc"
+  $glfwArgs += "-DX11_X11_LIB=who_cares" # see https://github.com/glfw/glfw/issues/1957#issuecomment-1891056066
+  #$glfwArgs += "-D__STDC_NO_VLA__=1" # because glfw includes regex.h but tcc doesn't support _REGEX_NELTS correctly somehow
+  Write-Host "Generating glfw compilation project"
+  & cmake -S glfw -B glfw/tcc_build $glfwArgs
+  if ($lastExitCode -ne 0) { exit 1 }
+  if (-not (Test-Path -Path "glfw/tcc_build/Makefile")) {
+    throw "tried to cmake the glfw files, but the expected makefile was not generated"
+  }
+}
+
+if ((-not $IsWindows) -and -not (Test-Path -Path "glfw/tcc_build/src/libglfw3.a")) {
+  Write-Host "Compiling glfw"
+  Push-Location
+  Set-Location "glfw/tcc_build/src"
+  & make
+  if ($lastExitCode -ne 0) { exit 1 }
+  Pop-Location
+  if (-not (Test-Path -Path "glfw/tcc_build/src/libglfw3.a")) {
+    throw "tried to compile glfw, but the expected output file was not generated"
+  }
+}
+
 $tcc = "tcc"
 if ($IsWindows) { $tcc = "./tcc/tcc.exe" }
 
@@ -71,18 +130,19 @@ if (-not (Test-Path -Path "obj/lua.o")) {
     ) | ForEach-Object { "./lua-5.4.2/src/$($_)" }
   $unused = [System.IO.Directory]::CreateDirectory("obj");
   & $tcc -r -o obj/lua.o $luaFiles
-  if (-not $?) { exit 1 }
+  if ($lastExitCode -ne 0) { exit 1 }
 }
 
 if ($test) {
   Write-Host "Compiling lurds2_testApp.exe"
   if ($IsWindows) {
     & $tcc -g -lwinmm -lopengl32 -o lurds2_testApp.exe ./src/lurds2_testApp.c ./obj/lua.o "-I./lua-5.4.2/src"
+    if ($lastExitCode -ne 0) { exit 1 }
   }
   else {
     & $tcc -g -o lurds2_testApp.exe ./src/lurds2_testApp.c ./obj/lua.o "-I./lua-5.4.2/src"
+    if ($lastExitCode -ne 0) { exit 1 }
   }
-  if (-not $?) { exit 1 }
 
   Write-Host "Running lurds2_testApp.exe"
   & ./lurds2_testApp.exe
@@ -97,10 +157,11 @@ else {
   Write-Host "Compiling lurds2.exe"
   if ($IsWindows) {
     & $tcc -g -lwinmm -lopengl32 -o lurds2.exe src/lurds2_main.c obj/lua.o "-Ilua-5.4.2/src"
+    if ($lastExitCode -ne 0) { exit 1 }
   } else {
     & $tcc -g -o lurds2.exe ./src/lurds2_main.c ./obj/lua.o "-I./lua-5.4.2/src"
+    if ($lastExitCode -ne 0) { exit 1 }
   }
-  if (-not $?) { exit 1 }
 
   if ($run) {
     Write-Host "Running lurds2.exe"
