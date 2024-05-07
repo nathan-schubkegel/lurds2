@@ -34,6 +34,62 @@ Release
 ---
 Invoke `build.bat -publish` in the root directory. The `publish` folder becomes populated with all files needed to distribute and play Lurds of the Room 2.
 
+Project Progress
+---
+| Mouse Input Handling | Windows Support | Linux Support | Lua Support |
+|:-------------------|:-----------------:|:---------------:|:-------------:|
+| Query current mouse position | | | |
+| Query current mouse button state | | | |
+| Events for mouse movement | | | |
+| Events for mouse button state change | | | |
+| Query app focused / mouse captured | | | |
+| Events for focus gained/lost and mouse captured/lost | | | |
+
+| Keyboard Input Handling | Windows Support | Linux Support | Lua Support |
+|:-------------------|:-----------------:|:---------------:|:-------------:|
+| Query current key up/down state | | | |
+| Events for key down/up | | | |
+| Query key capture | | | |
+| Events for key capture gained/lost | | | |
+
+| Gamepad Input Handling | Windows Support | Linux Support | Lua Support |
+|:-------------------|:-----------------:|:---------------:|:-------------:|
+| Enumerate gamepads | | | |
+| Persistent gamepad ID (survives unplug) | | | |
+| Query current button and axis states | | | |
+| Events for button and axis changes | | | |
+| Events for gamepad plug/unplug | | | |
+
+| Network Play | Windows Support | Linux Support | Lua Support |
+|:-------------------|:-----------------:|:---------------:|:-------------:|
+| Open and close udp socket | | | |
+| Explicit port and dynamic port | | | |
+| Send datagram | | | |
+| Receive datagram | | | |
+
+| OpenGL Drawing | Windows Support | Linux Support | Lua Support |
+|:-------------------|:-----------------:|:---------------:|:-------------:|
+| Get screen size | ✅ | | |
+| Clear whole screen to a color | ✅ | | |
+| Load named font file | ✅ | | |
+| GL modelview translation/rotation/matrix modification | ✅ | | |
+| Measure / draw text (2d) | ✅ | | |
+| Load a named bitmap file | ✅ | | |
+| Draw bitmap file (2d) | ✅ | | |
+| Load a named mesh | | | |
+| Load a named bitmap u/v coordinates file (probably json) | | | |
+| Render the mesh w/ a bitmap and u/v coordinates  | | | |
+| Shade any drawn thing with a color | | | |
+
+| Sound and Music | Windows Support | Linux Support | Lua Support |
+|:-------------------|:-----------------:|:---------------:|:-------------:|
+| Load named sounds | ✅ | | |
+| Play one time | ✅ | | |
+| Play looping and stop | ✅ | | |
+| Stop all | ✅ | | |
+| Support mp3s | | | |
+| Maybe not take up tons of ram | | | |
+
 Licensing
 ---
 The contents of this repo are free and unencumbered software released into the public domain under The Unlicense. You have complete freedom to do anything you want with the software, for any purpose. Please refer to <http://unlicense.org/> .
