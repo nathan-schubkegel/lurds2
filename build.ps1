@@ -30,7 +30,7 @@ if ($clean) {
   exit 0
 }
 
-if ($IsWindows -and -not (Test-Path -Path "tcc/tcc.exe")) {
+if (-not (Test-Path -Path "tcc/tcc.exe")) {
   $archivePath = "deps/tcc-0.9.27-win32-bin.zip"
   $fileInfo = Get-Item $archivePath
   if ($fileInfo.Length -le 500) {
