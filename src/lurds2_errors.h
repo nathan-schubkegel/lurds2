@@ -21,7 +21,9 @@ Please refer to <http://unlicense.org/>
 
 #define DEBUG_SHOW_INTEGER(message, value) DebugShowInteger(__FILE__, __FUNCTION__, __LINE__, (message), (value))
 
+#ifdef _WIN32
 char* GetLastErrorMessage();
+#endif
 void ShowFatalErrorThenKillProcess(const char* file, const char* function, int line, const char* message);
 void ShowFatalErrorThenKillProcess2(const char* file, const char* function, int line, const char* message, const char* message2);
 void ShowFatalErrorThenKillProcess3(const char* file, const char* function, int line, const char* message, const char* message2, const char* message3);

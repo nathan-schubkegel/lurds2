@@ -37,4 +37,15 @@ extern __attribute__(regparm(3)) int32_t AtomicCompareExchange32s(int32_t* addre
 extern __attribute__(regparm(3)) uint64_t AtomicCompareExchange64(uint64_t* address, uint64_t newValue, uint64_t compare);
 extern __attribute__(regparm(3)) int64_t AtomicCompareExchange64s(int64_t* address, int64_t newValue, int64_t compare);
 
+// Reads the value at the given address atomically (ensuring an old CPU-cached value is not returned)
+inline uint64_t AtomicRead64(uint64_t* address) { return AtomicCompareExchange64(address, 0, 0); }
+inline int64_t AtomicRead64s(int64_t* address) { return AtomicCompareExchange64s(address, 0, 0); }
+inline uint32_t AtomicRead32(uint32_t* address) { return AtomicCompareExchange32(address, 0, 0); }
+inline int32_t AtomicRead32s(int32_t* address) { return AtomicCompareExchange32s(address, 0, 0); }
+
+inline void AtomicWrite64(uint64_t* address, uint64_t value) { AtomicExchange64(address, value); }
+inline void AtomicWrite64s(int64_t* address, int64_t value) { AtomicExchange64s(address, value); }
+inline void AtomicWrite32(uint32_t* address, uint32_t value) { AtomicExchange32(address, value); }
+inline void AtomicWrite32s(int32_t* address, int32_t value) { AtomicExchange32s(address, value); }
+
 #endif

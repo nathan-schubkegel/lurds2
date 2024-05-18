@@ -6,11 +6,17 @@ Please refer to <http://unlicense.org/>
 
 #include "lurds2_errors.h"
 
+#ifdef _WIN32
 #include <Windows.h>
+#endif
+
 #include <wchar.h>
+#include <string.h>
+#include <stdlib.h>
 
 #define ERROR_MESSAGE_BUFFER_SIZE 2048
 
+#ifdef _WIN32
 char* GetLastErrorMessage()
 {
   //Get the error message ID, if any.
@@ -40,6 +46,7 @@ static DWORD WINAPI ShowFatalErrorThenKillProcessProc(LPVOID lpParameter)
 {
   MessageBox(0, (char*)lpParameter, "lurds2 fatal error", 0);
 }
+#endif
 
 void ShowFatalErrorThenKillProcess4(const char* file, const char* function, int line, const char* message, const char* message2, const char* message3, const char* message4)
 {
@@ -59,6 +66,7 @@ void ShowFatalErrorThenKillProcess4(const char* file, const char* function, int 
   if (message3) strncat(buffer, message3, sizeof(buffer) - strlen(buffer) - 1);
   if (message4) strncat(buffer, message4, sizeof(buffer) - strlen(buffer) - 1);
 
+#ifdef _WIN32
   HANDLE t;
   t = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ShowFatalErrorThenKillProcessProc, buffer, 0, 0);
   if (t != 0)
@@ -66,6 +74,10 @@ void ShowFatalErrorThenKillProcess4(const char* file, const char* function, int 
     WaitForSingleObject(t, INFINITE);
   }
   ExitProcess(1);
+#else
+  printf("%s", buffer);
+  exit(1);
+#endif
 }
 
 void ShowFatalErrorThenKillProcess3(const char* file, const char* function, int line, const char* message, const char* message2, const char* message3)
@@ -83,10 +95,12 @@ void ShowFatalErrorThenKillProcess(const char* file, const char* function, int l
   ShowFatalErrorThenKillProcess4(file, function, line, message, 0, 0, 0);
 }
 
+#ifdef _WIN32
 static DWORD WINAPI ShowDiagnosticErrorProc(LPVOID lpParameter)
 {
   MessageBox(0, (char*)lpParameter, "lurds2 diagnostic error", 0);
 }
+#endif
 
 void ShowDiagnosticError4(const char* file, const char* function, int line, const char* message, const char* message2, const char* message3, const char* message4)
 {
@@ -106,12 +120,16 @@ void ShowDiagnosticError4(const char* file, const char* function, int line, cons
   if (message3) strncat(buffer, message3, sizeof(buffer) - strlen(buffer) - 1);
   if (message4) strncat(buffer, message4, sizeof(buffer) - strlen(buffer) - 1);
 
+#ifdef _WIN32
   HANDLE t;
   t = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ShowDiagnosticErrorProc, buffer, 0, 0);
   if (t != 0)
   {
     WaitForSingleObject(t, INFINITE);
   }
+#else
+  printf("%s", buffer);
+#endif
 }
 
 void ShowDiagnosticError3(const char* file, const char* function, int line, const char* message, const char* message2, const char* message3)
@@ -147,10 +165,14 @@ void DebugShowInteger(const char* file, const char* function, int line, const ch
   sprintf(numBuffer, "%d", value);
   strncat(buffer, numBuffer, sizeof(buffer) - strlen(numBuffer) - 1);
 
+#ifdef _WIN32
   HANDLE t;
   t = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ShowDiagnosticErrorProc, buffer, 0, 0);
   if (t != 0)
   {
     WaitForSingleObject(t, INFINITE);
   }
+#else
+  printf("%s", buffer);
+#endif
 }
