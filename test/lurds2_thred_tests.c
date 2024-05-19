@@ -35,6 +35,7 @@ static void Create_Release()
   // I suppose this just proves no FATAL_ERRORS are raised
   Thred t = Thred_Create(&NeverRunThreadProc, 0);
   Thred_Release(t);
+  ASSERT_THAT(1);
 }
 
 static void Create_Start_Release()
@@ -49,6 +50,7 @@ static void Create_Start_Release()
   {
     usleep(1000);
   }
+  ASSERT_THAT(AtomicRead64s(&arg) == -55);
 
   // tell thread to stop
   AtomicWrite64s(&arg, 100);
@@ -58,6 +60,7 @@ static void Create_Start_Release()
   {
     usleep(1000);
   }
+  ASSERT_THAT(AtomicRead64s(&arg) == -999);
 }
 
 static void Create_Start_WaitBeforeRunning_Release()

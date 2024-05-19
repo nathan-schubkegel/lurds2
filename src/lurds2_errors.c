@@ -8,6 +8,8 @@ Please refer to <http://unlicense.org/>
 
 #ifdef _WIN32
 #include <Windows.h>
+#else
+#include <errno.h>
 #endif
 
 #include <wchar.h>
@@ -42,6 +44,71 @@ char* GetLastErrorMessage()
   return buffer;
 }
 
+#else
+
+typedef struct LinuxError
+{
+  int ErrorCode;
+  const char* ErrorMessage;
+} LinuxError;
+
+static LinuxError sKnownErrors[] =
+{
+  { EPERM, "EPERM - Operation not permitted" },
+  { ENOENT, "ENOENT - No such file or directory" },
+  { ESRCH, "ESRCH - No such process" },
+  { EINTR, "EINTR - Interrupted system call" },
+  { EIO, "EIO - I/O error" },
+  { ENXIO, "ENXIO - No such device or address" },
+  { E2BIG, "E2BIG - Argument list too long" },
+  { ENOEXEC, "ENOEXEC - Exec format error" },
+  { EBADF, "EBADF - Bad file number" },
+  { ECHILD, "ECHILD - No child processes" },
+  { EAGAIN, "EAGAIN - Try again" },
+  { ENOMEM, "ENOMEM - Out of memory" },
+  { EACCES, "EACCES - Permission denied" },
+  { EFAULT, "EFAULT - Bad address" },
+  { ENOTBLK, "ENOTBLK - Block device required" },
+  { EBUSY, "EBUSY - Device or resource busy" },
+  { EEXIST, "EEXIST - File exists" },
+  { EXDEV, "EXDEV - Cross-device link" },
+  { ENODEV, "ENODEV - No such device" },
+  { ENOTDIR, "ENOTDIR - Not a directory" },
+  { EISDIR, "EISDIR - Is a directory" },
+  { EINVAL, "EINVAL - Invalid argument" },
+  { ENFILE, "ENFILE - File table overflow" },
+  { EMFILE, "EMFILE - Too many open files" },
+  { ENOTTY, "ENOTTY - Not a typewriter" },
+  { ETXTBSY, "ETXTBSY - Text file busy" },
+  { EFBIG, "EFBIG - File too large" },
+  { ENOSPC, "ENOSPC - No space left on device" },
+  { ESPIPE, "ESPIPE - Illegal seek" },
+  { EROFS, "EROFS - Read-only file system" },
+  { EMLINK, "EMLINK - Too many links" },
+  { EPIPE, "EPIPE - Broken pipe" },
+  { EDOM, "EDOM - Math argument out of domain of func" },
+  { ERANGE, "ERANGE - Math result not representable" },
+};
+
+const char* GetLinuxErrorCodeMessage(int errorCode)
+{
+  LinuxError* current = &sKnownErrors[0];
+  LinuxError* end = current + (sizeof(sKnownErrors) / sizeof(sKnownErrors[0]));
+  while (current < end)
+  {
+    if (current->ErrorCode == errorCode)
+    {
+      return current->ErrorMessage;
+    }
+    current++;
+  }
+  return "Unrecognized error code";
+}
+
+#endif
+
+#ifdef _WIN32
+
 static DWORD WINAPI ShowFatalErrorThenKillProcessProc(LPVOID lpParameter)
 {
   MessageBox(0, (char*)lpParameter, "lurds2 fatal error", 0);
@@ -59,7 +126,11 @@ void ShowFatalErrorThenKillProcess4(const char* file, const char* function, int 
   strncat(buffer, function, sizeof(buffer) - strlen(buffer) - 1);
   strncat(buffer, " in ", sizeof(buffer) - strlen(buffer) - 1);
   strncat(buffer, file, sizeof(buffer) - strlen(buffer) - 1);
+#ifdef _WIN32
   strncat(buffer, "\r\n\r\n", sizeof(buffer) - strlen(buffer) - 1);
+#else
+  strncat(buffer, "\n", sizeof(buffer) - strlen(buffer) - 1);
+#endif
 
   if (message) strncat(buffer, message, sizeof(buffer) - strlen(buffer) - 1);
   if (message2) strncat(buffer, message2, sizeof(buffer) - strlen(buffer) - 1);
@@ -75,7 +146,7 @@ void ShowFatalErrorThenKillProcess4(const char* file, const char* function, int 
   }
   ExitProcess(1);
 #else
-  printf("%s", buffer);
+  printf("%s\n\n", buffer);
   exit(1);
 #endif
 }
@@ -113,7 +184,11 @@ void ShowDiagnosticError4(const char* file, const char* function, int line, cons
   strncat(buffer, function, sizeof(buffer) - strlen(buffer) - 1);
   strncat(buffer, "() in ", sizeof(buffer) - strlen(buffer) - 1);
   strncat(buffer, file, sizeof(buffer) - strlen(buffer) - 1);
+#ifdef _WIN32
   strncat(buffer, "\r\n\r\n", sizeof(buffer) - strlen(buffer) - 1);
+#else
+  strncat(buffer, "\n", sizeof(buffer) - strlen(buffer) - 1);
+#endif
 
   if (message) strncat(buffer, message, sizeof(buffer) - strlen(buffer) - 1);
   if (message2) strncat(buffer, message2, sizeof(buffer) - strlen(buffer) - 1);
@@ -128,7 +203,7 @@ void ShowDiagnosticError4(const char* file, const char* function, int line, cons
     WaitForSingleObject(t, INFINITE);
   }
 #else
-  printf("%s", buffer);
+  printf("%s\n\n", buffer);
 #endif
 }
 
@@ -147,7 +222,7 @@ void ShowDiagnosticError(const char* file, const char* function, int line, const
   ShowDiagnosticError4(file, function, line, message, 0, 0, 0);
 }
 
-void DebugShowInteger(const char* file, const char* function, int line, const char* message, int value)
+void DebugShowInteger(const char* file, const char* function, int line, const char* message, int value, const char * message2, const char * message3)
 {
   char buffer[ERROR_MESSAGE_BUFFER_SIZE];
   memset(buffer, 0, sizeof(buffer));
@@ -158,12 +233,18 @@ void DebugShowInteger(const char* file, const char* function, int line, const ch
   strncat(buffer, function, sizeof(buffer) - strlen(buffer) - 1);
   strncat(buffer, "() in ", sizeof(buffer) - strlen(buffer) - 1);
   strncat(buffer, file, sizeof(buffer) - strlen(buffer) - 1);
+#ifdef _WIN32
   strncat(buffer, "\r\n\r\n", sizeof(buffer) - strlen(buffer) - 1);
+#else
+  strncat(buffer, "\n", sizeof(buffer) - strlen(buffer) - 1);
+#endif
 
   if (message) strncat(buffer, message, sizeof(buffer) - strlen(buffer) - 1);
   char numBuffer[50];
   sprintf(numBuffer, "%d", value);
   strncat(buffer, numBuffer, sizeof(buffer) - strlen(numBuffer) - 1);
+  if (message2) strncat(buffer, message2, sizeof(buffer) - strlen(buffer) - 1);
+  if (message3) strncat(buffer, message3, sizeof(buffer) - strlen(buffer) - 1);
 
 #ifdef _WIN32
   HANDLE t;
@@ -173,6 +254,6 @@ void DebugShowInteger(const char* file, const char* function, int line, const ch
     WaitForSingleObject(t, INFINITE);
   }
 #else
-  printf("%s", buffer);
+  printf("%s\n\n", buffer);
 #endif
 }

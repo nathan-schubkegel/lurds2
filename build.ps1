@@ -161,7 +161,7 @@ Get-ChildItem "$PSScriptRoot/src" -Filter "*.s" | Foreach-Object {
   #Write-Host $oFilePath $oFileExists $oFileTime
   if ($sFileTime -gt $oFileTime) {
     Write-Host "Compiling ./src/$($_.Name)"
-    & $tcc -r -o $oFilePath $_.FullName
+    & $tcc -g -r -o $oFilePath $_.FullName
     if ($lastExitCode -ne 0) { exit 1 }
   }
   $asmObjects += $oFilePath
